@@ -26,6 +26,16 @@ as argument.
 
 """
 
+def quasar_map_get(session, *args, **kwargs):
+    """Let the React client request the active character's map snapshot."""
+
+    character = session.puppet
+    if character:
+        from world.mapping import send_map_sync
+
+        send_map_sync(character)
+
+
 # def oob_echo(session, *args, **kwargs):
 #     """
 #     Example echo function. Echoes args, kwargs sent to it.

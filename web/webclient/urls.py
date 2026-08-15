@@ -10,10 +10,11 @@ from django.urls import path
 
 from evennia.web.webclient.urls import urlpatterns as evennia_webclient_urlpatterns
 
+from . import views
+
 # add patterns here
 urlpatterns = [
-    # path("url-pattern", imported_python_view),
-    # path("url-pattern", imported_python_view),
+    path("legacy/", views.legacy_webclient, name="legacy"),
 ]
 
 # read by Django

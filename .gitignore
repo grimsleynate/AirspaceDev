@@ -15,6 +15,9 @@ ENV/
 # Packaging and build output
 build/
 dist/
+node_modules/
+npm-debug.log*
+*.tsbuildinfo
 *.egg-info/
 .eggs/
 *.egg
@@ -40,6 +43,7 @@ server/conf/secret_settings_*.py
 server/logs/*.log*
 server/.static/
 server/.media/
+web/static/webclient/react/index.html
 *.log
 *.pid
 *.restart

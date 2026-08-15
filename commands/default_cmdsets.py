@@ -17,6 +17,8 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 from evennia import default_cmds
 from evennia.contrib.rpg.character_creator.character_creator import ContribChargenCmdSet
 
+from commands.player_commands import CmdGreet, CmdMap, CmdTalk
+
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -35,6 +37,9 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         #
         # any commands you add below will overload the default ones.
         #
+        self.add(CmdMap)
+        self.add(CmdGreet)
+        self.add(CmdTalk)
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):

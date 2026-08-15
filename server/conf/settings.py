@@ -46,6 +46,9 @@ CMDSET_UNLOGGEDIN = "evennia.contrib.base_systems.menu_login.UnloggedinCmdSet"
 CONNECTION_SCREEN_MODULE = "server.conf.connection_screens"
 CHARGEN_MENU = "world.chargen_menu"
 
+# Persistent per-character room exploration.
+INSTALLED_APPS += ["world.mapdata.apps.MapDataConfig"]
+
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################
