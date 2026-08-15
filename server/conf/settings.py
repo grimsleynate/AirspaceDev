@@ -34,6 +34,17 @@ from evennia.settings_default import *
 # This is the name of your game. Make it catchy!
 SERVERNAME = "Quasar"
 
+#Account and Character config
+AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
+AUTO_PUPPET_ON_LOGIN = False
+MAX_NR_CHARACTERS = 5
+MAX_NR_SIMULTANEOUS_PUPPETS = 1
+MULTISESSION_MODE = 0
+
+#Character creation config
+CMDSET_UNLOGGEDIN = "evennia.contrib.base_systems.menu_login.UnloggedinCmdSet"
+CONNECTION_SCREEN_MODULE = "server.conf.connection_screens"
+CHARGEN_MENU = "world.chargen_menu"
 
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
