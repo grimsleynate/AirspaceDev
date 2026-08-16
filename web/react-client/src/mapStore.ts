@@ -48,6 +48,10 @@ export function updateMap(
     environment: info.environment || info.terrain || oldRoom?.environment || "",
     exits,
     x: position[0], y: position[1], z: position[2], visited: true,
+    description: info.description ?? oldRoom?.description ?? "",
+    players: info.players ?? oldRoom?.players ?? [],
+    npcs: info.npcs ?? oldRoom?.npcs ?? [],
+    items: info.items ?? oldRoom?.items ?? [],
   };
 
   Object.entries(exits).forEach(([direction, targetId]) => {
@@ -66,6 +70,10 @@ export function updateMap(
         y: position[1] + vector[1],
         z: position[2] + vector[2],
         visited: false,
+        description: target?.description || "",
+        players: target?.players || [],
+        npcs: target?.npcs || [],
+        items: target?.items || [],
       };
     }
   });

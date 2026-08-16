@@ -25,6 +25,16 @@ export interface RoomInfo {
   exits?: Record<string, string | number>;
   coords?: string;
   coord?: RoomCoordinate;
+  description?: string;
+  players?: RoomEntity[];
+  npcs?: RoomEntity[];
+  items?: RoomEntity[];
+}
+
+export interface RoomEntity {
+  id: string | number;
+  name: string;
+  hostile?: boolean;
 }
 
 export interface MapSync {
@@ -45,6 +55,151 @@ export interface MappedRoom {
   y: number;
   z: number;
   visited: boolean;
+  description: string;
+  players: RoomEntity[];
+  npcs: RoomEntity[];
+  items: RoomEntity[];
+}
+
+export interface JournalEntry {
+  id: string;
+  number: number;
+  title: string;
+  summary: string;
+  detail: string;
+  status: string;
+}
+
+export interface JournalSync {
+  revision: number;
+  character: { id: string | number; name: string } | null;
+  quests: JournalEntry[];
+  tasks: JournalEntry[];
+}
+
+export interface AudioSceneLayer {
+  event: string;
+  gain?: number;
+}
+
+export interface AudioScene {
+  revision?: number;
+  scene: string;
+  music?: string | null;
+  ambience?: AudioSceneLayer[];
+  fade_ms?: number;
+}
+
+export interface AudioPlayEvent {
+  revision?: number;
+  event: string;
+  gain?: number;
+  priority?: number;
+  cooldown_ms?: number;
+  pan?: number;
+}
+
+export interface AudioStopEvent {
+  revision?: number;
+  event?: string;
+  channel?: "music" | "ambience" | "effects";
+  all?: boolean;
+  fade_ms?: number;
+}
+
+export interface AudioSettings {
+  master: number;
+  music: number;
+  ambience: number;
+  effects: number;
+}
+
+export type PrimaryResourceKind = "tech" | "acuity" | "skill";
+
+export interface ResourceValue {
+  current: number;
+  max: number;
+}
+
+export interface PrimaryResource extends ResourceValue {
+  kind: PrimaryResourceKind;
+  label: string;
+  short_label: string;
+}
+
+export interface OxygenResource extends ResourceValue {
+  source: string | null;
+  active: boolean;
+  required: boolean;
+}
+
+export interface CharacterResourceState {
+  revision: number;
+  character: {
+    id: string | number;
+    name: string;
+    species: string;
+    gender?: string | null;
+    pre_synth_gender?: string | null;
+    portrait_id?: string;
+    portrait_url?: string;
+    locomotion_chassis?: "wheel" | "bipedal";
+    career: string;
+    specialization: string;
+    level?: number;
+  } | null;
+  health: ResourceValue | null;
+  primary: PrimaryResource | null;
+  oxygen: OxygenResource | null;
+  environment: {
+    atmosphere: string;
+    breathable: boolean;
+    gravity: boolean;
+  } | null;
+  progression?: {
+    level: number;
+    experience: number;
+    level_experience: number;
+    level_experience_max: number;
+    next_level_at: number | null;
+    max_level: number;
+  } | null;
+  combat?: {
+    target: {
+      id: string | number;
+      name: string;
+      level: number;
+      health: number;
+      health_max: number;
+      intent?: { name: string; resolves_at: number; duration: number } | null;
+    } | null;
+    weapon: string;
+    weapon_family: string;
+    attack_category?: "unarmed" | "ranged_energy" | "melee_energy";
+    damage: { min: number; max: number };
+    armor: number;
+    accuracy: number;
+    evasion: number;
+    crit_chance: number;
+    recovery_remaining: number;
+  } | null;
+}
+
+export interface PortraitChoice {
+  id: string;
+  species: string;
+  gender: string;
+  label: string;
+  url: string;
+}
+
+export interface ChargenPreview {
+  step: string;
+  species: string | null;
+  gender: string | null;
+  pre_synth_gender: string | null;
+  portrait: PortraitChoice | null;
+  choices: PortraitChoice[];
 }
 
 export interface OutputEntry {

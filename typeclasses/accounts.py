@@ -137,7 +137,24 @@ class Account(ContribChargenAccount):
 
     """
 
-    pass
+    def at_look(self, target=None, session=None, **kwargs):
+        """Number characters in the OOC display for keyboard selection."""
+
+        appearance = super().at_look(target=target, session=session, **kwargs)
+        if not appearance or (target and not isinstance(target, (list, tuple))):
+            return appearance
+
+        numbered = []
+        character_number = 0
+        for line in appearance.splitlines():
+            if line.startswith(" - "):
+                character_number += 1
+                line = f"  |w{character_number}.|n {line[3:]}"
+            numbered.append(line)
+        return "\n".join(numbered).replace(
+            "|wic <name>|n to play",
+            "|wic <number or name>|n to play",
+        )
 
 
 class Guest(DefaultGuest):

@@ -24,6 +24,7 @@ import {
   type Node,
   type NodeProps,
   type ReactFlowInstance,
+  useViewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -135,6 +136,8 @@ function DirectionHandles() {
 
 function ExitIndicators({ directions }: { directions: string[] }) {
   const known = new Set(directions);
+  const { zoom } = useViewport();
+  const specialScale = Math.min(2.75, Math.max(1, 1 / zoom));
   return (
     <>
       {PLANAR_DIRECTIONS.map((direction) => {
@@ -142,7 +145,10 @@ function ExitIndicators({ directions }: { directions: string[] }) {
         const Icon = PLANAR_ICONS[direction];
         return <Icon key={direction} className={`map-direction map-direction-${direction}`} />;
       })}
-      <span className="map-special-directions">
+      <span
+        className="map-special-directions"
+        style={{ transform: `translateY(-50%) scale(${specialScale})` }}
+      >
         {SPECIAL_DIRECTIONS.map((direction: SpecialDirection) => {
           if (!known.has(direction)) return null;
           const Icon = SPECIAL_ICONS[direction];
@@ -252,14 +258,17 @@ export function WorldMap({ rooms, currentId, onMove }: WorldMapProps) {
     [currentId, rooms],
   );
 
-  const centerOnPlayer = (instance = flowRef.current) => {
+  const centerOnPlayer = (
+    instance = flowRef.current,
+    zoom = instance?.getZoom() ?? PLAYER_ZOOM,
+  ) => {
     if (!instance || !currentId) return;
     const player = nodes.find((node) => node.id === currentId);
     if (!player) return;
     void instance.setCenter(
       player.position.x + NODE_SIZE / 2,
       player.position.y + NODE_SIZE / 2,
-      { zoom: PLAYER_ZOOM, duration: 350 },
+      { zoom, duration: 350 },
     );
   };
 
@@ -283,7 +292,7 @@ export function WorldMap({ rooms, currentId, onMove }: WorldMapProps) {
       nodeTypes={NODE_TYPES}
       onInit={(instance) => {
         flowRef.current = instance;
-        requestAnimationFrame(() => centerOnPlayer(instance));
+        requestAnimationFrame(() => centerOnPlayer(instance, PLAYER_ZOOM));
       }}
       onNodeClick={(_, node) => moveTo(node.id)}
       minZoom={0.35}

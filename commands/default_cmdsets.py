@@ -17,7 +17,51 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 from evennia import default_cmds
 from evennia.contrib.rpg.character_creator.character_creator import ContribChargenCmdSet
 
-from commands.player_commands import CmdGreet, CmdMap, CmdTalk
+from commands.player_commands import (
+    CmdAttack,
+    CmdCombatDemo,
+    CmdConsider,
+    CmdEquip,
+    CmdEquipment,
+    CmdGreet,
+    CmdMap,
+    CmdNumpadEast,
+    CmdNumpadLook,
+    CmdNumpadNorth,
+    CmdNumpadNortheast,
+    CmdNumpadNorthwest,
+    CmdNumpadSouth,
+    CmdNumpadSoutheast,
+    CmdNumpadSouthwest,
+    CmdNumpadWest,
+    CmdOxygen,
+    CmdSoundTest,
+    CmdSheet,
+    CmdSkill,
+    CmdSkills,
+    CmdTalk,
+    CmdUnequip,
+    CmdVitals,
+)
+from commands.journal_commands import CmdQuestLog, CmdTaskLog
+from commands.account_commands import CmdCharDelete, CmdIC
+from commands.tutorial_commands import (
+    CmdAbandonMara,
+    CmdActivatePower,
+    CmdAnswerChannel,
+    CmdAskPorter,
+    CmdBindPorter,
+    CmdCutDoor,
+    CmdInstallTutorial,
+    CmdMercyMara,
+    CmdOpenCabinet,
+    CmdOpenCradle,
+    CmdPorterStatus,
+    CmdRescueMara,
+    CmdTestTransit,
+    CmdTouchPorter,
+    CmdUseTutorial,
+)
 
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
@@ -40,6 +84,44 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(CmdMap)
         self.add(CmdGreet)
         self.add(CmdTalk)
+        self.add(CmdSoundTest)
+        self.add(CmdVitals)
+        self.add(CmdOxygen)
+        self.add(CmdEquipment)
+        self.add(CmdEquip)
+        self.add(CmdUnequip)
+        self.add(CmdAttack)
+        self.add(CmdSkills)
+        self.add(CmdSkill)
+        self.add(CmdSheet)
+        self.add(CmdConsider)
+        self.add(CmdCombatDemo)
+        self.add(CmdNumpadNorthwest)
+        self.add(CmdNumpadNorth)
+        self.add(CmdNumpadNortheast)
+        self.add(CmdNumpadWest)
+        self.add(CmdNumpadLook)
+        self.add(CmdNumpadEast)
+        self.add(CmdNumpadSouthwest)
+        self.add(CmdNumpadSouth)
+        self.add(CmdNumpadSoutheast)
+        self.add(CmdAnswerChannel)
+        self.add(CmdOpenCabinet)
+        self.add(CmdOpenCradle)
+        self.add(CmdUseTutorial)
+        self.add(CmdInstallTutorial)
+        self.add(CmdActivatePower)
+        self.add(CmdTestTransit)
+        self.add(CmdBindPorter)
+        self.add(CmdTouchPorter)
+        self.add(CmdAskPorter)
+        self.add(CmdPorterStatus)
+        self.add(CmdRescueMara)
+        self.add(CmdAbandonMara)
+        self.add(CmdMercyMara)
+        self.add(CmdCutDoor)
+        self.add(CmdQuestLog)
+        self.add(CmdTaskLog)
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
@@ -61,6 +143,9 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         # any commands you add below will overload the default ones.
         #
         self.add(ContribChargenCmdSet)
+        # Override the contrib's name-only IC command with Quasar's numbered selector.
+        self.add(CmdIC)
+        self.add(CmdCharDelete)
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):

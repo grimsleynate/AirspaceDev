@@ -10,6 +10,8 @@ with a location in the game world (like Characters, Rooms, Exits).
 
 from evennia.objects.objects import DefaultObject
 
+from .appearance import CLUE_TEXT, INTERACTABLE_NAME, style
+
 
 class ObjectParent:
     """
@@ -215,3 +217,29 @@ class Object(ObjectParent, DefaultObject):
     """
 
     pass
+
+
+class InspectableScenery(Object):
+    """Visible room detail that can be examined but not carried away."""
+
+    is_inspectable_detail = True
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.locks.add("get:false();drop:false();give:false()")
+
+    def get_display_name(self, looker=None, **kwargs):
+        return style(super().get_display_name(looker, **kwargs), INTERACTABLE_NAME)
+
+
+class PuzzleClue(InspectableScenery):
+    """Inspectable scenery with an optional, deliberately authored clue line."""
+
+    is_puzzle_clue = True
+
+    def get_display_desc(self, looker, **kwargs):
+        description = super().get_display_desc(looker, **kwargs)
+        clue = self.db.clue_desc
+        if not clue:
+            return description
+        return f"{description}\n{style(clue, CLUE_TEXT)}"

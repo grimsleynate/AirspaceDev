@@ -5,9 +5,14 @@ Rooms are simple containers that has no location of their own.
 
 """
 
+from collections import defaultdict
+
 from evennia.objects.objects import DefaultRoom
+from evennia.utils.utils import iter_to_str
+from evennia.utils.ansi import strip_ansi
 
 from .objects import ObjectParent
+from .appearance import ROOM_NAME, style
 
 
 # GMCP Room.Info convention used by Mudlet and MUSHclient mapper plugins.
@@ -59,6 +64,83 @@ class Room(ObjectParent, DefaultRoom):
     See mygame/typeclasses/objects.py for a list of
     properties and methods available on all Objects.
     """
+
+    appearance_template = """
+{header}
+{name}{extra_name_info}|n
+{desc}
+{exits}
+{characters}
+{things}
+{footer}
+    """
+
+    def at_object_creation(self):
+        """New rooms default to breathable air and working gravity."""
+
+        super().at_object_creation()
+        self.db.atmosphere = "breathable"
+        self.db.gravity = True
+
+    def get_display_name(self, looker=None, **kwargs):
+        """Keep room titles cyan while other entity types use their own color."""
+
+        return style(super().get_display_name(looker, **kwargs), ROOM_NAME)
+
+    def get_display_characters(self, looker, **kwargs):
+        """List player characters separately from NPCs."""
+
+        characters = self.filter_visible(
+            self.contents_get(content_type="character"), looker, **kwargs
+        )
+        names = iter_to_str(
+            (character.get_display_name(looker, **kwargs) for character in characters),
+            endsep=", and",
+        )
+        return f"|wPlayers:|n {names}" if names else ""
+
+    def get_display_things(self, looker, **kwargs):
+        """Separate NPCs, portable items, and inspectable scenery into clear lines."""
+
+        things = self.filter_visible(
+            self.contents_get(content_type="object"), looker, **kwargs
+        )
+        categories = (
+            ("Hostiles", [thing for thing in things if getattr(thing, "is_hostile", False)]),
+            (
+                "People",
+                [
+                    thing
+                    for thing in things
+                    if getattr(thing, "is_npc", False)
+                    and not getattr(thing, "is_hostile", False)
+                ],
+            ),
+            (
+                "Items",
+                [thing for thing in things if getattr(thing, "is_portable_item", False)],
+            ),
+            (
+                "Notable details",
+                [thing for thing in things if getattr(thing, "is_inspectable_detail", False)],
+            ),
+        )
+        categorized = {thing for _label, members in categories for thing in members}
+        categories += (("Other", [thing for thing in things if thing not in categorized]),)
+
+        lines = []
+        for label, members in categories:
+            if not members:
+                continue
+            grouped = defaultdict(list)
+            for thing in members:
+                grouped[thing.get_display_name(looker, **kwargs)].append(thing)
+            names = []
+            for display_name, group in sorted(grouped.items()):
+                count = len(group)
+                names.append(display_name if count == 1 else f"{count}× {display_name}")
+            lines.append(f"|w{label}:|n {iter_to_str(names, endsep=', and')}")
+        return "\n".join(lines)
 
     def get_visible_map_exits(self, looker=None):
         """Return the standard directions visible to a particular looker."""
@@ -120,6 +202,14 @@ class Room(ObjectParent, DefaultRoom):
     def return_appearance(self, looker, **kwargs):
         """Place the optional ASCII map above the normal room description."""
 
+        if looker and looker.location == self and (
+            self.db.tutorial_badge_station
+            or (self.key == "Supply Cage" and self.db.map_area == "Quasar Orientation Annex")
+        ):
+            from typeclasses.items import ensure_character_tutorial_badge
+
+            ensure_character_tutorial_badge(looker, self)
+
         appearance = super().return_appearance(looker, **kwargs)
         if not looker or looker.location != self:
             return appearance
@@ -159,16 +249,50 @@ class Room(ObjectParent, DefaultRoom):
         y = self.db.map_y
         z = self.db.map_z or 0
 
+        visible_characters = self.filter_visible(
+            self.contents_get(content_type="character"), looker
+        )
+        visible_objects = self.filter_visible(
+            self.contents_get(content_type="object"), looker
+        )
+
+        def entity(obj, **extra):
+            return {
+                "id": obj.id,
+                "name": strip_ansi(obj.get_display_name(looker)),
+                **extra,
+            }
+
+        players = [entity(obj) for obj in visible_characters if obj is not looker]
+        npcs = [
+            entity(obj, hostile=bool(getattr(obj, "is_hostile", False)))
+            for obj in visible_objects
+            if getattr(obj, "is_npc", False) or getattr(obj, "is_hostile", False)
+        ]
+        items = [
+            entity(obj)
+            for obj in visible_objects
+            if getattr(obj, "is_portable_item", False)
+        ]
+
         info = {
             "num": self.id,
             "name": self.key,
             "area": area,
             "environment": environment,
             "details": list(self.db.map_details or []),
+            "description": strip_ansi(self.get_display_desc(looker)),
+            "players": players,
+            "npcs": npcs,
+            "items": items,
             "exits": exits,
             # Compatibility names used by Aardwolf-style mappers.
             "zone": area,
             "terrain": environment,
+            "atmosphere": str(self.db.atmosphere or "breathable"),
+            "gravity": bool(
+                True if self.attributes.get("gravity") is None else self.db.gravity
+            ),
         }
 
         # Coordinates are optional. Automappers can still discover and lay

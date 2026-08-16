@@ -5,11 +5,11 @@ This menu is used by Evennia's Character Creator contrib. The caller
 is a Session, and caller.new_char is the character currently being built.
 """
 
-from evennia import search_tag
 from evennia.utils import dedent
 
 from typeclasses.characters import Character
 from world.character_options import BACKGROUNDS, CAREERS, SPECIES
+from world.portraits import GENDERS, assign_default_portrait, send_chargen_preview
 
 
 def _display_name(options, selected_key):
@@ -60,8 +60,8 @@ def menunode_welcome(caller, raw_string="", **kwargs):
     )
 
     options = {
-        "key": ("Begin", "begin", "b"),
-        "desc": "Begin creating your character.",
+        "key": ("1", "Begin", "begin", "b"),
+        "desc": "Begin — Start creating your character.",
         "goto": "menunode_name",
     }
 
@@ -158,11 +158,11 @@ def menunode_species(caller, raw_string="", **kwargs):
 
     options = []
 
-    for species_key, species in SPECIES.items():
+    for index, (species_key, species) in enumerate(SPECIES.items(), start=1):
         options.append(
             {
-                "key": (species["name"], species_key),
-                "desc": species["description"],
+                "key": (str(index), species["name"], species_key),
+                "desc": f"{species['name']} — {species['description']}",
                 "goto": (
                     _set_species,
                     {"species_key": species_key},
@@ -172,7 +172,7 @@ def menunode_species(caller, raw_string="", **kwargs):
 
     options.append(
         {
-            "key": ("Back", "back", "b"),
+            "key": (str(len(options) + 1), "Back", "back", "b"),
             "desc": "Choose a different name.",
             "goto": "menunode_name",
         }
@@ -190,8 +190,104 @@ def _set_species(caller, raw_string, species_key=None, **kwargs):
         return "menunode_species"
 
     caller.new_char.db.species = species_key
+    caller.new_char.db.locomotion_chassis = "wheel" if species_key == "synth" else "bipedal"
+    caller.new_char.db.gender = None
+    caller.new_char.db.pre_synth_gender = None
+    caller.new_char.db.portrait_id = None
+    caller.new_char.db.portrait_url = None
 
+    return "menunode_synth_origin_gender" if species_key == "synth" else "menunode_human_gender"
+
+
+# ---------------------------------------------------------------------
+# Gender and default portrait
+# ---------------------------------------------------------------------
+
+
+def _gender_options(goto, back_node="menunode_species", back_description="Choose a different species."):
+    options = []
+    for index, (gender_key, gender) in enumerate(GENDERS.items(), start=1):
+        options.append({
+            "key": (str(index), gender["name"], gender_key),
+            "desc": f"{gender['name']} — {gender['description']}",
+            "goto": (goto, {"gender_key": gender_key}),
+        })
+    options.append({
+        "key": ("4", "Back", "back", "b"),
+        "desc": f"Back — {back_description}",
+        "goto": back_node,
+    })
+    return options
+
+
+def menunode_human_gender(caller, raw_string="", **kwargs):
+    caller.new_char.db.chargen_step = "menunode_human_gender"
+    send_chargen_preview(caller, caller.new_char, "gender")
+    text = dedent(
+        """
+        |cChoose a Gender|n
+
+        This choice selects your initial portrait. A gender-neutral character
+        receives either default Human portrait at random.
+        """
+    )
+    return text, _gender_options(_set_human_gender)
+
+
+def _set_human_gender(caller, raw_string, gender_key=None, **kwargs):
+    if gender_key not in GENDERS:
+        return "menunode_human_gender"
+    caller.new_char.db.gender = gender_key
+    caller.new_char.db.pre_synth_gender = None
+    assign_default_portrait(caller.new_char, "human", gender_key)
+    send_chargen_preview(caller, caller.new_char, "portrait_selected")
     return "menunode_background"
+
+
+def menunode_synth_origin_gender(caller, raw_string="", **kwargs):
+    caller.new_char.db.chargen_step = "menunode_synth_origin_gender"
+    send_chargen_preview(caller, caller.new_char, "pre_synth_gender")
+    text = dedent(
+        """
+        |cChoose Your Pre-Synth Gender|n
+
+        Before upload, how did you identify?
+        """
+    )
+    return text, _gender_options(_set_synth_origin_gender)
+
+
+def _set_synth_origin_gender(caller, raw_string, gender_key=None, **kwargs):
+    if gender_key not in GENDERS:
+        return "menunode_synth_origin_gender"
+    caller.new_char.db.pre_synth_gender = gender_key
+    caller.new_char.db.gender = None
+    assign_default_portrait(caller.new_char, "synth")
+    send_chargen_preview(caller, caller.new_char, "portrait_selected")
+    return "menunode_background"
+
+
+def menunode_synth_gender(caller, raw_string="", **kwargs):
+    """Compatibility step for Synths paused in the removed gender menu."""
+
+    if not caller.new_char.db.pre_synth_gender:
+        return menunode_synth_origin_gender(caller, raw_string, **kwargs)
+    caller.new_char.db.chargen_step = "menunode_synth_gender"
+    caller.new_char.db.gender = None
+    assign_default_portrait(caller.new_char, "synth")
+    send_chargen_preview(caller, caller.new_char, "portrait_selected")
+    text = dedent(
+        """
+        |cStandard Synth Chassis|n
+
+        Synth chassis have no gender. Your pre-Synth identity has been recorded.
+        """
+    )
+    return text, {
+        "key": ("1", "Continue", "continue"),
+        "desc": "Continue to background selection.",
+        "goto": "menunode_background",
+    }
 
 
 # ---------------------------------------------------------------------
@@ -217,11 +313,11 @@ def menunode_background(caller, raw_string="", **kwargs):
 
     options = []
 
-    for background_key, background in BACKGROUNDS.items():
+    for index, (background_key, background) in enumerate(BACKGROUNDS.items(), start=1):
         options.append(
             {
-                "key": (background["name"], background_key),
-                "desc": background["description"],
+                "key": (str(index), background["name"], background_key),
+                "desc": f"{background['name']} — {background['description']}",
                 "goto": (
                     _set_background,
                     {"background_key": background_key},
@@ -231,7 +327,7 @@ def menunode_background(caller, raw_string="", **kwargs):
 
     options.append(
         {
-            "key": ("Back", "back", "b"),
+            "key": (str(len(options) + 1), "Back", "back", "b"),
             "desc": "Choose a different species.",
             "goto": "menunode_species",
         }
@@ -275,11 +371,11 @@ def menunode_career(caller, raw_string="", **kwargs):
 
     options = []
 
-    for career_key, career in CAREERS.items():
+    for index, (career_key, career) in enumerate(CAREERS.items(), start=1):
         options.append(
             {
-                "key": (career["name"], career_key),
-                "desc": career["description"],
+                "key": (str(index), career["name"], career_key),
+                "desc": f"{career['name']} — {career['description']}",
                 "goto": (
                     _set_career,
                     {"career_key": career_key},
@@ -289,7 +385,7 @@ def menunode_career(caller, raw_string="", **kwargs):
 
     options.append(
         {
-            "key": ("Back", "back", "b"),
+            "key": (str(len(options) + 1), "Back", "back", "b"),
             "desc": "Choose a different background.",
             "goto": "menunode_background",
         }
@@ -342,14 +438,17 @@ def menunode_specialization(caller, raw_string="", **kwargs):
 
     options = []
 
-    for specialization_key, specialization in career["specializations"].items():
+    for index, (specialization_key, specialization) in enumerate(
+        career["specializations"].items(), start=1
+    ):
         options.append(
             {
                 "key": (
+                    str(index),
                     specialization["name"],
                     specialization_key,
                 ),
-                "desc": specialization["description"],
+                "desc": f"{specialization['name']} — {specialization['description']}",
                 "goto": (
                     _set_specialization,
                     {"specialization_key": specialization_key},
@@ -359,7 +458,7 @@ def menunode_specialization(caller, raw_string="", **kwargs):
 
     options.append(
         {
-            "key": ("Back", "back", "b"),
+            "key": (str(len(options) + 1), "Back", "back", "b"),
             "desc": "Choose a different career.",
             "goto": "menunode_career",
         }
@@ -405,6 +504,12 @@ def menunode_review(caller, raw_string="", **kwargs):
     caller.new_char.db.chargen_step = "menunode_review"
 
     character = caller.new_char
+    if character.db.species == "synth" and not character.db.pre_synth_gender:
+        return "menunode_synth_origin_gender"
+    if character.db.species != "synth" and not character.db.gender:
+        return (
+            "menunode_human_gender"
+        )
     career = CAREERS.get(character.db.career)
 
     if not career:
@@ -429,6 +534,7 @@ def menunode_review(caller, raw_string="", **kwargs):
 
         |wName:|n {character.key}
         |wSpecies:|n {species_name}
+        {f'|wPre-Synth Gender:|n {GENDERS.get(character.db.pre_synth_gender, {}).get("name", "Unselected")}' if character.db.species == "synth" else f'|wGender:|n {GENDERS.get(character.db.gender, {}).get("name", "Unselected")}' }
         |wBackground:|n {background_name}
         |wCareer:|n {career["name"]}
         |wSpecialization:|n {specialization["name"]}
@@ -439,18 +545,18 @@ def menunode_review(caller, raw_string="", **kwargs):
 
     options = [
         {
-            "key": ("Confirm", "confirm", "yes", "y"),
-            "desc": "Finish character creation.",
+            "key": ("1", "Confirm", "confirm", "yes", "y"),
+            "desc": "Confirm — Finish character creation.",
             "goto": "menunode_end",
         },
         {
-            "key": ("Back", "back", "no", "n"),
-            "desc": "Return to specialization selection.",
+            "key": ("2", "Back", "back", "no", "n"),
+            "desc": "Back — Return to specialization selection.",
             "goto": "menunode_specialization",
         },
         {
-            "key": ("Restart", "restart"),
-            "desc": "Return to name selection.",
+            "key": ("3", "Restart", "restart"),
+            "desc": "Restart — Return to name selection.",
             "goto": "menunode_name",
         },
     ]
@@ -470,34 +576,16 @@ def menunode_end(caller, raw_string="", **kwargs):
 
     character = caller.new_char
 
-    tutorial_starts = search_tag(
-        "tutorial_start",
-        category="quasar_area",
-    )
+    # Initialize vitals and species-appropriate starter life support before the
+    # contrib puppets the completed character. Synths receive no oxygen tank.
+    from world.resources import initialize_character
 
-    if not tutorial_starts:
-        text = dedent(
-            """
-            |rCharacter creation could not be completed.|n
+    initialize_character(character, include_starter_gear=True)
 
-            The Quasar tutorial area has not been built yet.
-            Ask an administrator to run:
+    # Generate a persistent satellite unique to this character and enter it.
+    from world.tutorial import create_tutorial_instance
 
-              |wbatchcode tutorial_area|n
-            """
-        )
-
-        options = {
-            "key": ("Back", "back", "b"),
-            "desc": "Return to the review screen.",
-            "goto": "menunode_review",
-        }
-
-        return text, options
-
-    tutorial_start = tutorial_starts[0]
-
-    # Put the character in the tutorial immediately.
+    tutorial_start = create_tutorial_instance(character, enter=False)
     character.location = tutorial_start
 
     # Evennia uses this when restoring the character's location.

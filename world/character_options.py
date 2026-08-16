@@ -26,6 +26,7 @@ BACKGROUNDS = {
 CAREERS = {
     "vanguard": {
         "name": "Vanguard",
+        "resource": "skill",
         "description": "Vanguards confront danger directly and protect others in hostile places.",
         "specializations": {
             "marine": {
@@ -40,6 +41,7 @@ CAREERS = {
     },
     "technician": {
         "name": "Technician",
+        "resource": "tech",
         "description": "Technicians understand and operate the systems that keep civilization running.",
         "specializations": {
             "engineer": {

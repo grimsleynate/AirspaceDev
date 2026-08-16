@@ -14,6 +14,10 @@ function room(id: string, x: number, y: number, exits: Record<string, string>): 
     y,
     z: 0,
     visited: true,
+    description: "",
+    players: [],
+    npcs: [],
+    items: [],
   };
 }
 

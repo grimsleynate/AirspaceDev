@@ -8,6 +8,9 @@ from evennia.utils.test_resources import EvenniaTest
 
 from .exits import Exit
 from .exits import HiddenExit
+from .items import PortableItem
+from .npcs import FriendlyNPC
+from .objects import PuzzleClue
 from .rooms import ASCII_MAP_DIRECTIONS, DIRECTION_NAMES
 
 
@@ -29,15 +32,33 @@ class RoomInfoTests(EvenniaTest):
         )
 
     def test_room_info_uses_common_gmcp_shape(self):
+        self.char2.location = self.room2
         info = self.room1.get_room_info(self.char1)
 
         self.assertEqual(info["num"], self.room1.id)
         self.assertEqual(info["name"], self.room1.key)
         self.assertEqual(info["area"], "Test Station")
         self.assertEqual(info["environment"], "interior")
+        self.assertEqual(info["atmosphere"], "breathable")
+        self.assertTrue(info["gravity"])
         self.assertEqual(info["exits"]["n"], self.room2.id)
         self.assertEqual(info["coords"], "7,3,-2,1")
         self.assertEqual(info["coord"], {"id": 7, "x": 3, "y": -2, "z": 1})
+        self.assertIn("description", info)
+        self.assertEqual(info["players"], [])
+        self.assertEqual(info["npcs"], [])
+        self.assertEqual(info["items"], [])
+
+    def test_room_info_separates_visible_entities(self):
+        self.char2.location = self.room1
+        create_object(FriendlyNPC, key="Station Guide", location=self.room1)
+        create_object(PortableItem, key="access badge", location=self.room1)
+
+        info = self.room1.get_room_info(self.char1)
+
+        self.assertEqual([entity["name"] for entity in info["players"]], ["Char2"])
+        self.assertEqual([entity["name"] for entity in info["npcs"]], ["Station Guide"])
+        self.assertEqual([entity["name"] for entity in info["items"]], ["access badge"])
 
     def test_looking_at_current_room_sends_room_info(self):
         self.char1.location = self.room1
@@ -108,3 +129,33 @@ class RoomInfoTests(EvenniaTest):
         )
 
         self.assertNotIn("crouchsouthwest", self.room1.get_room_info(self.char1)["exits"])
+
+    def test_room_appearance_separates_players_npcs_items_and_details(self):
+        self.char2.location = self.room1
+        npc = create_object(FriendlyNPC, key="Station Guide", location=self.room1)
+        item = create_object(PortableItem, key="access badge", location=self.room1)
+        detail = create_object(PuzzleClue, key="scuffed panel", location=self.room1)
+
+        appearance = self.room1.return_appearance(self.char1)
+
+        self.assertIn("|wPlayers:|n", appearance)
+        self.assertIn("|wPeople:|n", appearance)
+        self.assertIn("|wItems:|n", appearance)
+        self.assertIn("|wNotable details:|n", appearance)
+        self.assertIn("|h|wChar2|n", appearance)
+        self.assertIn("|h|gStation Guide|n", appearance)
+        self.assertIn("|h|yaccess badge|n", appearance)
+        self.assertIn("|h|mscuffed panel|n", appearance)
+        self.assertNotEqual(npc.get_display_name(self.char1), self.room1.get_display_name(self.char1))
+        self.assertTrue(item.get_display_name(self.char1).startswith("|h|y"))
+        self.assertTrue(detail.get_display_name(self.char1).startswith("|h|m"))
+
+    def test_puzzle_clue_keeps_prose_neutral_and_accents_authored_clue(self):
+        detail = create_object(PuzzleClue, key="scuffed panel", location=self.room1)
+        detail.db.desc = "The panel is scratched around one recessed fastener."
+        detail.db.clue_desc = "The scratches form a shallow clockwise arc."
+
+        description = detail.get_display_desc(self.char1)
+
+        self.assertTrue(description.startswith("The panel is scratched"))
+        self.assertIn("|mThe scratches form a shallow clockwise arc.|n", description)

@@ -1,12 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ClientConfig, ConnectionStatus, MapSync, RoomInfo } from "./types";
+import type {
+  AudioPlayEvent,
+  AudioScene,
+  AudioStopEvent,
+  CharacterResourceState,
+  ChargenPreview,
+  ClientConfig,
+  ConnectionStatus,
+  MapSync,
+  JournalSync,
+  RoomInfo,
+} from "./types";
 
 interface SocketHandlers {
   onText: (text: string) => void;
   onPrompt: (text: string) => void;
   onRoomInfo: (room: RoomInfo) => void;
   onMapSync: (sync: MapSync) => void;
+  onJournalSync: (sync: JournalSync) => void;
+  onAudioScene: (scene: AudioScene) => void;
+  onAudioPlay: (event: AudioPlayEvent) => void;
+  onAudioStop: (event: AudioStopEvent) => void;
+  onCharacterResources: (state: CharacterResourceState) => void;
+  onChargenPreview: (preview: ChargenPreview) => void;
   onProtocol: (name: string, data: unknown) => void;
 }
 
@@ -52,6 +69,16 @@ function parseEnvelope(raw: string, handlers: SocketHandlers): void {
   const packageName = envelope.id.toLowerCase();
   if (packageName === "room.info") handlers.onRoomInfo(data as RoomInfo);
   else if (packageName === "quasar.map.sync") handlers.onMapSync(data as MapSync);
+  else if (packageName === "quasar.journal.sync") handlers.onJournalSync(data as JournalSync);
+  else if (packageName === "quasar.audio.scene") handlers.onAudioScene(data as AudioScene);
+  else if (packageName === "quasar.audio.play") handlers.onAudioPlay(data as AudioPlayEvent);
+  else if (packageName === "quasar.audio.stop") handlers.onAudioStop(data as AudioStopEvent);
+  else if (packageName === "quasar.character.resources") {
+    handlers.onCharacterResources(data as CharacterResourceState);
+  }
+  else if (packageName === "quasar.chargen.preview") {
+    handlers.onChargenPreview(data as ChargenPreview);
+  }
   else handlers.onProtocol(envelope.id, data);
 }
 
@@ -74,7 +101,14 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
 
     socket.onopen = () => {
       setStatus("connected");
+      socket.send(JSON.stringify({
+        proto: "gmcp",
+        id: "Quasar.Audio.Supports",
+        data: JSON.stringify({ version: 1 }),
+      }));
       socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Map.Get", data: "" }));
+      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Character.Get", data: "" }));
+      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Journal.Get", data: "" }));
     };
     socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {

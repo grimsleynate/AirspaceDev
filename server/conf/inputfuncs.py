@@ -36,6 +36,37 @@ def quasar_map_get(session, *args, **kwargs):
         send_map_sync(character)
 
 
+def quasar_audio_supports(session, *args, **kwargs):
+    """Negotiate native audio and immediately provide the active scene."""
+
+    session.protocol_flags["QUASAR_AUDIO"] = 1
+    character = session.puppet
+    if character:
+        from world.audio import send_audio_scene
+
+        send_audio_scene(character, session=session, force=True)
+
+
+def quasar_character_get(session, *args, **kwargs):
+    """Let web and GMCP clients request an authoritative resource snapshot."""
+
+    character = session.puppet
+    if character:
+        from world.resources import send_character_resources
+
+        send_character_resources(character, session=session, force=True)
+
+
+def quasar_journal_get(session, *args, **kwargs):
+    """Let clients request the active character's quest and task journals."""
+
+    character = session.puppet
+    if character:
+        from world.journal import send_journal_sync
+
+        send_journal_sync(character, session=session)
+
+
 # def oob_echo(session, *args, **kwargs):
 #     """
 #     Example echo function. Echoes args, kwargs sent to it.

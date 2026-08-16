@@ -36,7 +36,7 @@ describe("updateMap", () => {
     const stale = {
       "2": {
         id: "2", name: "Unexplored", area: "Old Area", environment: "", exits: {},
-        x: 99, y: 99, z: 0, visited: false,
+        x: 99, y: 99, z: 0, visited: false, description: "", players: [], npcs: [], items: [],
       },
     };
     const result = updateMap(stale, null, {

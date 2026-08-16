@@ -30,7 +30,9 @@ def at_server_start():
     This is called every time the server starts up, regardless of
     how it was shut down.
     """
-    pass
+    from world.tutorial import ensure_global_tutorial_area
+
+    ensure_global_tutorial_area()
 
 
 def at_server_stop():
