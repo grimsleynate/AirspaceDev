@@ -95,17 +95,14 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
 
     setStatus("connecting");
     const pageId = crypto.randomUUID?.() || Math.random().toString(36).slice(2);
-    const socket = new WebSocket(makeSocketUrl(config, pageId), ["json.mudstandards.org"]);
+    const socket = new WebSocket(makeSocketUrl(config, pageId));
     socket.binaryType = "arraybuffer";
     socketRef.current = socket;
 
     socket.onopen = () => {
       setStatus("connected");
-      socket.send(JSON.stringify({
-        proto: "gmcp",
-        id: "Quasar.Audio.Supports",
-        data: JSON.stringify({ version: 1 }),
-      }));
+      socket.send(JSON.stringify(["csessid", [pageId], {}]));
+      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Audio.Supports", data: JSON.stringify({ version: 1 }) }));
       socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Map.Get", data: "" }));
       socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Character.Get", data: "" }));
       socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Journal.Get", data: "" }));
@@ -134,7 +131,7 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
     connect();
     const keepAlive = window.setInterval(() => {
       if (socketRef.current?.readyState === WebSocket.OPEN) {
-        socketRef.current.send(new TextEncoder().encode("idle"));
+        socketRef.current.send("idle");
       }
     }, 180_000);
 
@@ -153,9 +150,10 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
   const sendCommand = useCallback((command: string) => {
     const socket = socketRef.current;
     if (!command || socket?.readyState !== WebSocket.OPEN) return false;
-    socket.send(new TextEncoder().encode(command));
+    socket.send(JSON.stringify(["text", command, {}]));
     return true;
   }, []);
+
 
   return { status, sendCommand, reconnect: connect };
 }
