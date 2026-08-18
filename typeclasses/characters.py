@@ -9,12 +9,13 @@ creation commands.
 """
 
 from evennia.objects.objects import DefaultCharacter
+from evennia.contrib.rpg.rpsystem import ContribRPCharacter
 
 from .objects import ObjectParent
 from .appearance import PLAYER_NAME, style
 
 
-class Character(ObjectParent, DefaultCharacter):
+class Character(ObjectParent, ContribRPCharacter):
     """
     The Character just re-implements some of the Object's methods and hooks
     to represent a Character entity in-game.

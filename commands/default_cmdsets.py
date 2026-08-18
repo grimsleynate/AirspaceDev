@@ -16,6 +16,7 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 
 from evennia import default_cmds
 from evennia.contrib.rpg.character_creator.character_creator import ContribChargenCmdSet
+from evennia.contrib.rpg.rpsystem import RPSystemCmdSet
 from evennia.contrib.base_systems.building_menu import GenericBuildingCmd
 
 from commands.player_commands import (
@@ -124,6 +125,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(CmdQuestLog)
         self.add(CmdTaskLog)
         self.add(GenericBuildingCmd())
+        self.add(RPSystemCmdSet())
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):

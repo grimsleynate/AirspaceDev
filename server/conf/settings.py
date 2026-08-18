@@ -64,6 +64,15 @@ CMDSET_UNLOGGEDIN = "evennia.contrib.base_systems.menu_login.UnloggedinCmdSet"
 CONNECTION_SCREEN_MODULE = "server.conf.connection_screens"
 CHARGEN_MENU = "world.chargen_menu"
 
+#Search config
+SEARCH_MULTIMATCH_REGEX = (
+    r"(?P<number>[0-9]+)-(?P<name>[^-]*)(?P<args>.*)"
+)
+
+SEARCH_MULTIMATCH_TEMPLATE = (
+    " {number}-{name}{aliases}{info}\n"
+)
+
 # Persistent per-character room exploration.
 INSTALLED_APPS += ["world.mapdata.apps.MapDataConfig"]
 

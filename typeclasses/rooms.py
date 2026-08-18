@@ -10,6 +10,7 @@ from collections import defaultdict
 from evennia.objects.objects import DefaultRoom
 from evennia.utils.utils import iter_to_str
 from evennia.utils.ansi import strip_ansi
+from evennia.contrib.rpg.rpsystem import ContribRPRoom
 
 from .objects import ObjectParent
 from .appearance import ROOM_NAME, style
@@ -54,7 +55,7 @@ def _exit_is_mapper_visible(exit_obj, looker=None):
     return not looker or exit_obj.access(looker, "view")
 
 
-class Room(ObjectParent, DefaultRoom):
+class Room(ObjectParent, ContribRPRoom):
     """
     Rooms are like any Object, except their location is None
     (which is default). They also use basetype_setup() to
