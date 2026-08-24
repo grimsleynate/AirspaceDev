@@ -37,6 +37,14 @@ def record_room_visit(character, room):
         room_id=room.id,
     )
     known.add(room.id)
+    if created:
+        from world.achievements import track_quasar_achievement
+
+        track_quasar_achievement(
+            character,
+            category="explore",
+            tracking=str(room.db.map_area or "Uncharted"),
+        )
     return created
 
 

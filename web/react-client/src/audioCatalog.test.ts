@@ -6,6 +6,9 @@ describe("audio catalog", () => {
   it("contains the starter scene and gameplay events", () => {
     expect(AUDIO_CATALOG).toHaveProperty("music.quasar_drift");
     expect(AUDIO_CATALOG).toHaveProperty("ambience.station_air");
+    expect(AUDIO_CATALOG).toHaveProperty("ambience.wayhouse_lamps");
+    expect(AUDIO_CATALOG).toHaveProperty("ambience.wayhouse_wind");
+    expect(AUDIO_CATALOG).toHaveProperty("ambience.wayhouse_insects");
     expect(AUDIO_CATALOG).toHaveProperty("combat.player_hurt");
     expect(AUDIO_CATALOG).toHaveProperty("combat.energy_attack");
   });

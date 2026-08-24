@@ -30,9 +30,18 @@ def at_server_start():
     This is called every time the server starts up, regardless of
     how it was shut down.
     """
-    from world.tutorial import ensure_global_tutorial_area
+    # Add persistent components and capability tags to objects created before
+    # the component architecture was introduced. The migration is idempotent
+    # and records a ServerConfig marker after its first successful pass.
+    from typeclasses.items import migrate_legacy_physical_components
 
-    ensure_global_tutorial_area()
+    migrate_legacy_physical_components()
+    from world.dawnline import ensure_dawnline
+
+    ensure_dawnline()
+    from world.vermin import maintain_vermin_population
+
+    maintain_vermin_population()
 
 
 def at_server_stop():

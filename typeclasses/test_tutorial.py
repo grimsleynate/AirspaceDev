@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest
 
-from typeclasses.tutorial import PersonalPortablePorter, TutorialRoom
+from typeclasses.tutorial import PersonalPortablePorter, TutorialExit, TutorialRoom
 from world import tutorial
 from world.tutorial_data import ROOMS
 
@@ -33,22 +33,21 @@ class PrivateTutorialTests(EvenniaTest):
         tutorial.handle_item_collected(character, item)
         return item
 
-    def test_two_characters_share_topology_but_keep_private_story_layers(self):
+    def test_two_characters_receive_complete_separate_private_instances(self):
         first = self._build(self.char1)
         second = self._build(self.char2)
-        shared_rooms = [
-            obj for obj in tutorial.shared_objects() if isinstance(obj, TutorialRoom)
-        ]
 
-        self.assertEqual(len(shared_rooms), len(ROOMS))
-        self.assertEqual(first, second)
-        self.assertTrue(first.db.tutorial_shared)
+        self.assertNotEqual(first, second)
         self.assertNotEqual(self.char1.db.tutorial_instance_id, self.char2.db.tutorial_instance_id)
-        self.assertEqual(first.db.map_area_id, second.db.map_area_id)
-        self.assertFalse(
-            any(isinstance(obj, TutorialRoom) for obj in tutorial.instance_objects(self.char1))
+        self.assertNotEqual(first.db.map_area_id, second.db.map_area_id)
+        self.assertEqual(
+            sum(isinstance(obj, TutorialRoom) for obj in tutorial.instance_objects(self.char1)),
+            len(ROOMS),
         )
-        self.assertLessEqual(len(tutorial.instance_objects(self.char1)), 6)
+        self.assertEqual(
+            sum(isinstance(obj, TutorialRoom) for obj in tutorial.instance_objects(self.char2)),
+            len(ROOMS),
+        )
         self.assertNotEqual(
             self.char1.db.tutorial_identifier_fragments,
             self.char2.db.tutorial_identifier_fragments,
@@ -57,25 +56,21 @@ class PrivateTutorialTests(EvenniaTest):
         self.assertFalse(feeder.access(self.char2, "view"))
         self.assertEqual(tutorial.ensure_tutorial_instance(self.char1), first)
 
-    def test_shared_room_hides_players_and_actor_messages(self):
+    def test_private_rooms_and_exits_are_owner_locked(self):
         room = self._build(self.char1)
         self._build(self.char2)
-        self.char2.move_to(room, quiet=True, move_type="teleport")
 
-        self.assertEqual(self.char1.location, self.char2.location)
-        self.assertEqual(room.get_display_characters(self.char1), "")
-        self.assertFalse(self.char2.access(self.char1, "view"))
-        with patch.object(self.char1, "msg") as first_message, patch.object(
-            self.char2, "msg"
-        ) as second_message:
-            room.msg_contents("private movement", from_obj=self.char1)
-
-        self.assertTrue(first_message.called)
-        self.assertFalse(second_message.called)
+        self.assertFalse(room.access(self.char2, "view"))
+        exit_obj = next(obj for obj in room.contents if isinstance(obj, TutorialExit))
+        self.assertFalse(exit_obj.access(self.char2, "traverse"))
 
     def test_all_rooms_are_gravity_stable_and_only_command_starts_breathable(self):
         self._build(self.char1)
-        rooms = [obj for obj in tutorial.shared_objects() if isinstance(obj, TutorialRoom)]
+        rooms = [
+            obj
+            for obj in tutorial.instance_objects(self.char1)
+            if isinstance(obj, TutorialRoom)
+        ]
 
         self.assertTrue(all(room.db.gravity for room in rooms))
         breathable = {room.db.tutorial_role for room in rooms if room.db.atmosphere == "breathable"}
@@ -296,12 +291,6 @@ class PrivateTutorialTests(EvenniaTest):
     def test_deleting_character_deletes_unfinished_instance(self):
         self._build(self.char1)
         instance_id = str(self.char1.db.tutorial_instance_id)
-        shared_room_ids = {obj.id for obj in tutorial.shared_objects() if isinstance(obj, TutorialRoom)}
-
         self.char1.delete()
 
         self.assertEqual(list(tutorial.search_tag(instance_id, category=tutorial.INSTANCE_CATEGORY)), [])
-        self.assertEqual(
-            {obj.id for obj in tutorial.shared_objects() if isinstance(obj, TutorialRoom)},
-            shared_room_ids,
-        )

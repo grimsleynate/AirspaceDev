@@ -1,8 +1,15 @@
 """Tests for Quasar's vitals, career resources, and oxygen survival."""
 
+from evennia import create_object
 from evennia.utils.test_resources import EvenniaTest
 
-from typeclasses.items import ensure_starter_oxygen_tank, find_starter_oxygen_tank
+from typeclasses.items import (
+    BasicBackpack,
+    PortableItem,
+    UtilityPressureSuit,
+    ensure_starter_oxygen_tank,
+    find_starter_oxygen_tank,
+)
 from world.resources import (
     build_resource_payload,
     build_standard_vitals,
@@ -100,3 +107,31 @@ class CharacterResourceTests(EvenniaTest):
         synth_vitals, synth_labels = build_standard_vitals(self.char1)
         self.assertNotIn("oxygen", synth_vitals)
         self.assertNotIn("oxygen", synth_labels)
+
+    def test_character_snapshot_describes_inventory_equipment_and_containers(self):
+        backpack = create_object(BasicBackpack, key="backpack", location=self.char1)
+        create_object(PortableItem, key="widget", location=backpack)
+        suit = create_object(
+            UtilityPressureSuit, key="pressure suit", location=self.char1
+        )
+        suit.equip_to(self.char1, quiet=True)
+
+        payload = build_resource_payload(self.char1)
+
+        self.assertEqual(payload["revision"], 6)
+        self.assertEqual(payload["inventory"][0]["name"], "backpack")
+        self.assertTrue(payload["inventory"][0]["container"])
+        self.assertEqual(payload["inventory"][0]["contents_count"], 1)
+        self.assertEqual(payload["equipment"][0]["name"], "pressure suit")
+
+    def test_new_chargen_identity_fields_are_scoped_into_hud_payload(self):
+        self.char1.db.background = "heimdall_rigger"
+        self.char1.db.active_skill_trees = ["machinistry", "warding"]
+
+        payload = build_resource_payload(self.char1)
+
+        self.assertEqual(payload["character"]["background"], "Heimdall Rigger")
+        self.assertEqual(
+            payload["character"]["active_skill_trees"],
+            ["Machinistry", "Warding"],
+        )

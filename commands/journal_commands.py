@@ -22,6 +22,9 @@ class _JournalCommand(Command):
                 return
         self.caller.msg(format_journal(self.caller, self.journal_kind, number=number))
         send_journal_sync(self.caller)
+        from world.opening_tutorial import record_tutorial_proof
+
+        record_tutorial_proof(self.caller, "journal_checked")
 
 
 class CmdQuestLog(_JournalCommand):

@@ -12,6 +12,7 @@ from world.combat import (
     AttackCategory,
     award_experience,
     character_combat_stats,
+    combat_payload,
     engage,
     experience_for_level,
     progression_payload,
@@ -82,6 +83,25 @@ class CombatFoundationTests(EvenniaTest):
         self.assertEqual(scout["crit_chance"], 10)
         self.assertGreater(engineer["damage_min"], scout["damage_min"])
         self.assertGreater(systems["evasion"], engineer["evasion"])
+
+    def test_oruun_natural_weapon_is_a_bounded_disarmed_bonus(self):
+        for item in find_starter_combat_gear(self.char1).values():
+            if getattr(item, "is_weapon", False):
+                item.unequip_from(self.char1, quiet=True)
+        self.char1.db.career = None
+        self.char1.db.specialization = None
+        self.char1.db.species_benefit = None
+        ordinary = character_combat_stats(self.char1)
+        self.char1.db.species_benefit = "raking_bite"
+        oruun = character_combat_stats(self.char1)
+        self.assertEqual(oruun["damage_min"], ordinary["damage_min"] + 1)
+        self.assertEqual(oruun["damage_max"], ordinary["damage_max"] + 1)
+
+    def test_combat_payload_exposes_active_skill_for_client_hotbar(self):
+        payload = combat_payload(self.char1)
+
+        self.assertEqual(payload["active_skill"]["name"], "Breach Strike")
+        self.assertEqual(payload["active_skill"]["command"], "cast breach strike")
 
     @patch("world.combat.randint", side_effect=[1, 12, 100])
     def test_active_attack_damages_target_spends_resource_and_sets_cooldown(self, _randint):

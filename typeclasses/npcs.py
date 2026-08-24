@@ -28,13 +28,27 @@ class FriendlyNPC(Object):
             f"{self.get_display_name(character)} notices your arrival and offers a welcoming nod."
         )
 
-    def at_greet(self, character):
+    def at_greet(self, character, session=None, social="greet"):
+        social = (
+            social
+            if social in {"greet", "nod", "wave", "smile", "bow", "salute"}
+            else "greet"
+        )
+        phrase = {
+            "greet": "$conj(greet)",
+            "nod": "$conj(nod) to",
+            "wave": "$conj(wave) to",
+            "smile": "$conj(smile) at",
+            "bow": "$conj(bow) to",
+            "salute": "$conj(salute)",
+        }[social]
         character.location.msg_contents(
-            f"$You() $conj(greet) {self.key}.", from_obj=character
+            f"$You() {phrase} {self.key}.", from_obj=character
         )
-        character.msg(
-            f'{self.get_display_name(character)} says, "Welcome aboard. Talk to me when you are ready."'
-        )
+        if self.dialogue_module:
+            self.at_talk(character, session=session)
+        else:
+            character.msg(f'{self.get_display_name(character)} says, "Welcome aboard."')
 
     def at_talk(self, character, session=None):
         if not self.dialogue_module:

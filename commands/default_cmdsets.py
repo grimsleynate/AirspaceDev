@@ -18,14 +18,21 @@ from evennia import default_cmds
 from evennia.contrib.rpg.character_creator.character_creator import ContribChargenCmdSet
 from evennia.contrib.rpg.rpsystem import RPSystemCmdSet
 from evennia.contrib.base_systems.building_menu import GenericBuildingCmd
+from evennia.contrib.base_systems.ingame_reports import ReportsCmdSet
+from evennia.contrib.game_systems.achievements import CmdAchieve
+from evennia.contrib.game_systems.containers import ContainerCmdSet
+from evennia.contrib.game_systems.mail import CmdMail
 
 from commands.player_commands import (
     CmdAttack,
     CmdCombatDemo,
+    CmdContainerSizes,
     CmdConsider,
     CmdEquip,
     CmdEquipment,
     CmdGreet,
+    CmdInventory,
+    CmdInnate,
     CmdMap,
     CmdNumpadEast,
     CmdNumpadLook,
@@ -46,7 +53,14 @@ from commands.player_commands import (
     CmdVitals,
 )
 from commands.journal_commands import CmdQuestLog, CmdTaskLog
+from commands.datapad_commands import (
+    CmdHackDatapad,
+    CmdReadDatapad,
+    CmdTitleDatapad,
+    CmdWriteDatapad,
+)
 from commands.account_commands import CmdCharDelete, CmdIC
+from commands.accessibility_commands import CmdAccessibility
 from commands.tutorial_commands import (
     CmdAbandonMara,
     CmdActivatePower,
@@ -64,6 +78,8 @@ from commands.tutorial_commands import (
     CmdTouchPorter,
     CmdUseTutorial,
 )
+from commands.opening_tutorial_commands import CmdOpeningDecision, CmdReact
+from commands.vermin_commands import CmdVermin
 
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
@@ -85,6 +101,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         #
         self.add(CmdMap)
         self.add(CmdGreet)
+        self.add(CmdInventory)
+        self.add(CmdInnate)
         self.add(CmdTalk)
         self.add(CmdSoundTest)
         self.add(CmdVitals)
@@ -98,6 +116,11 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(CmdSheet)
         self.add(CmdConsider)
         self.add(CmdCombatDemo)
+        self.add(CmdContainerSizes)
+        self.add(CmdReadDatapad)
+        self.add(CmdWriteDatapad)
+        self.add(CmdTitleDatapad)
+        self.add(CmdHackDatapad)
         self.add(CmdNumpadNorthwest)
         self.add(CmdNumpadNorth)
         self.add(CmdNumpadNortheast)
@@ -107,25 +130,20 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(CmdNumpadSouthwest)
         self.add(CmdNumpadSouth)
         self.add(CmdNumpadSoutheast)
-        self.add(CmdAnswerChannel)
-        self.add(CmdOpenCabinet)
-        self.add(CmdOpenCradle)
         self.add(CmdUseTutorial)
-        self.add(CmdInstallTutorial)
-        self.add(CmdActivatePower)
-        self.add(CmdTestTransit)
         self.add(CmdBindPorter)
         self.add(CmdTouchPorter)
         self.add(CmdAskPorter)
         self.add(CmdPorterStatus)
-        self.add(CmdRescueMara)
-        self.add(CmdAbandonMara)
-        self.add(CmdMercyMara)
-        self.add(CmdCutDoor)
+        self.add(CmdOpeningDecision)
+        self.add(CmdReact)
+        self.add(CmdVermin)
         self.add(CmdQuestLog)
         self.add(CmdTaskLog)
+        self.add(CmdAchieve())
         self.add(GenericBuildingCmd())
         self.add(RPSystemCmdSet())
+        self.add(ContainerCmdSet)
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
@@ -150,6 +168,9 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         # Override the contrib's name-only IC command with Quasar's numbered selector.
         self.add(CmdIC)
         self.add(CmdCharDelete)
+        self.add(CmdAccessibility)
+        self.add(CmdMail())
+        self.add(ReportsCmdSet)
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):

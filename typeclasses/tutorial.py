@@ -39,7 +39,7 @@ class TutorialOwnedMixin:
 
 
 class TutorialRoom(TutorialOwnedMixin, Room):
-    """A shared tutorial room whose story layer remains character-private."""
+    """A room belonging to one character's private tutorial instance."""
 
     def assign_tutorial_owner(self, character, instance_id, role):
         super().assign_tutorial_owner(character, instance_id, role)
@@ -65,9 +65,7 @@ class TutorialRoom(TutorialOwnedMixin, Room):
         return str(self.db.atmosphere or "vacuum")
 
     def get_display_characters(self, looker, **kwargs):
-        """Tutorial responders share topology but are invisible to one another."""
-
-        return ""
+        return super().get_display_characters(looker, **kwargs)
 
     def msg_contents(self, text=None, exclude=None, from_obj=None, mapping=None, **kwargs):
         """Keep actor-originated room messages inside one character's story layer."""

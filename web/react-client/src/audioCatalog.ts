@@ -40,6 +40,24 @@ export const AUDIO_CATALOG: Record<string, AudioCatalogEntry> = {
     volume: 0.48,
     html5: true,
   },
+  "ambience.wayhouse_lamps": {
+    channel: "ambience",
+    variants: [source("ambience/wayhouse-lamps.wav")],
+    loop: true,
+    volume: 0.5,
+  },
+  "ambience.wayhouse_wind": {
+    channel: "ambience",
+    variants: [source("ambience/wayhouse-wind.wav")],
+    loop: true,
+    volume: 0.48,
+  },
+  "ambience.wayhouse_insects": {
+    channel: "ambience",
+    variants: [source("ambience/wayhouse-insects.wav")],
+    loop: true,
+    volume: 0.42,
+  },
   "ui.confirm": {
     channel: "effects",
     variants: [source("sfx/interface-confirm.mp3")],

@@ -1,4 +1,4 @@
-"""Server-authoritative tutorial state over one shared, privacy-layered area."""
+"""Server-authoritative tutorial state with one private area per character."""
 
 from time import perf_counter
 from uuid import uuid4
@@ -92,7 +92,7 @@ def role_object(character, role, *, include_inventory=True):
 
 
 def role_room(character, role):
-    obj = _shared_role_object(role)
+    obj = role_object(character, role, include_inventory=False)
     return obj if isinstance(obj, TutorialRoom) else None
 
 
@@ -113,7 +113,7 @@ def _create_owned(typeclass, character, instance_id, role, **kwargs):
     return obj
 
 
-def _legacy_create_tutorial_instance(character, enter=False):
+def create_tutorial_instance(character, enter=False):
     """Create a complete, persistent 21-room satellite for one character."""
 
     if character.db.tutorial_complete:
@@ -127,13 +127,15 @@ def _legacy_create_tutorial_instance(character, enter=False):
 
     instance_id = str(uuid4())
     character.db.tutorial_instance_id = instance_id
-    character.db.tutorial_progress = {}
-    seed = int(instance_id.replace("-", "")[:8], 16)
-    character.db.tutorial_identifier_fragments = [
-        f"{chr(65 + seed % 26)}\u2014",
-        f"\u2014{(seed // 26) % 90 + 10}",
-        f"//{(seed // 2340) % 9 + 1}",
-    ]
+    if character.db.tutorial_progress is None:
+        character.db.tutorial_progress = {}
+    if not character.db.tutorial_identifier_fragments:
+        seed = int(instance_id.replace("-", "")[:8], 16)
+        character.db.tutorial_identifier_fragments = [
+            f"{chr(65 + seed % 26)}\u2014",
+            f"\u2014{(seed // 26) % 90 + 10}",
+            f"//{(seed // 2340) % 9 + 1}",
+        ]
     map_area_id = _map_area_id(character, instance_id)
     rooms = {}
 
@@ -257,7 +259,7 @@ def _legacy_create_tutorial_instance(character, enter=False):
     return start
 
 
-def _legacy_ensure_tutorial_instance(character, enter=False, create=True):
+def _ensure_private_tutorial_instance(character, enter=False, create=True):
     """Return/reconcile an unfinished character's instance, creating if needed."""
 
     if character.db.tutorial_complete:
@@ -478,7 +480,7 @@ def _ensure_private_cast(character, instance_id):
             obj.db.desc = "Security Chief Juno Rusk sits rigidly on a makeshift cot."
 
 
-def create_tutorial_instance(character, enter=False):
+def _create_shared_tutorial_layer(character, enter=False):
     """Attach a private story layer to the global tutorial satellite."""
 
     if character.db.tutorial_complete:
@@ -515,21 +517,83 @@ def create_tutorial_instance(character, enter=False):
 
 
 def ensure_tutorial_instance(character, enter=False, create=True):
-    """Reconcile a character's private state against the shared satellite."""
+    """Return/reconcile one complete private tutorial instance per character."""
 
     if character.db.tutorial_complete:
         return None
     instance_id = str(character.db.tutorial_instance_id or "")
-    if instance_id and not instance_id.startswith(GLOBAL_INSTANCE_PREFIX):
-        return migrate_character_to_shared_tutorial(character, enter=enter)
-    start = ensure_global_tutorial_area()
     if instance_id.startswith(GLOBAL_INSTANCE_PREFIX):
-        _ensure_private_cast(character, instance_id)
-        if enter and not bool(getattr(getattr(character.location, "db", None), "tutorial_shared", False)):
-            character.move_to(start, quiet=True, move_type="teleport")
-        _recover_required_items(character)
-        return start
-    return create_tutorial_instance(character, enter=enter) if create else None
+        return migrate_character_to_private_tutorial(character, enter=enter)
+    return _ensure_private_tutorial_instance(character, enter=enter, create=create)
+
+
+def migrate_character_to_private_tutorial(character, enter=False):
+    """Replace a shared story layer with a full private satellite, preserving state."""
+
+    location_role = str(
+        getattr(getattr(character.location, "db", None), "tutorial_role", "")
+        or "docking_collar"
+    )
+    snapshots = {}
+    for obj in instance_objects(character):
+        role = str(obj.db.tutorial_role or "")
+        if role in {"porter", "induction_bridge", "spare_oxygen", "med_patch", "routing_wafer"}:
+            snapshots[role] = {
+                "carried": obj.location == character,
+                "bound": bool(obj.db.bound),
+                "equipped": bool(obj.db.equipped),
+                "calibrated": bool(obj.db.calibrated),
+            }
+    _delete_instance_objects(character, preserve_porter=False)
+    character.attributes.remove("tutorial_instance_id")
+    start = create_tutorial_instance(character, enter=False)
+    state = progress(character)
+    stale_roles = {
+        flag: role
+        for flag, role in (
+            ("corpse_feeder_defeated", "corpse_feeder"),
+            ("feeding_knot_defeated", "feeding_knot"),
+            ("overtaken_raider_defeated", "overtaken_raider"),
+            ("juno_defeated", "overtaken_juno"),
+        )
+        if state.get(flag)
+    }
+    if state.get("juno_transformed") or state.get("survivors_decompressed"):
+        stale_roles["juno_removed"] = "juno"
+    if state.get("survivors_decompressed"):
+        stale_roles["mara_removed"] = "mara"
+    for role in stale_roles.values():
+        obj = role_object(character, role)
+        if obj:
+            obj.delete()
+    if state.get("juno_transformed") and not state.get("juno_defeated"):
+        _ensure_private_cast(character, character.db.tutorial_instance_id)
+    _recover_required_items(character)
+    if state.get("cabinet_open"):
+        _spawn_stores_items(character)
+    if state.get("feeding_knot_defeated") and not state.get("wafer_installed"):
+        _spawn_wafer(character)
+    for role, snapshot in snapshots.items():
+        obj = role_object(character, role)
+        if not obj:
+            continue
+        if role == "porter":
+            obj.db.bound = snapshot["bound"] or bool(state.get("porter_bound"))
+            obj.db.bound_character_id = character.id if obj.db.bound else None
+            obj.db.equipped = snapshot["equipped"]
+        if role == "routing_wafer":
+            obj.db.calibrated = snapshot["calibrated"] or bool(
+                state.get("wafer_calibrated")
+            )
+        if snapshot["carried"] or (role == "porter" and state.get("porter_recovered")):
+            obj.move_to(character, quiet=True)
+    destination = role_room(character, location_role) or start
+    character.home = start
+    character.db.prelogout_location = destination
+    if enter or bool(getattr(getattr(character.location, "db", None), "tutorial_shared", False)):
+        character.move_to(destination, quiet=True, move_type="teleport")
+    logger.log_info(f"Quasar tutorial: restored private instance for character #{character.id}.")
+    return start
 
 
 def _recover_required_items(character):
@@ -765,7 +829,7 @@ def objective_hint(character, room=None):
 
 def handle_room_entry(character, source_location=None):
     room = character.location
-    if not isinstance(room, TutorialRoom) or not bool(room.db.tutorial_shared):
+    if not isinstance(room, TutorialRoom) or int(room.db.tutorial_owner_id or 0) != character.id:
         return
     state = progress(character)
 

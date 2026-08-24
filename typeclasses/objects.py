@@ -9,6 +9,7 @@ with a location in the game world (like Characters, Rooms, Exits).
 """
 
 from evennia.objects.objects import DefaultObject
+from evennia.contrib.base_systems.components import ComponentHolderMixin
 from evennia.contrib.rpg.rpsystem import ContribRPObject
 
 from .appearance import CLUE_TEXT, INTERACTABLE_NAME, style
@@ -23,10 +24,15 @@ class ObjectParent:
     of the derived classes has itself defined that same hook already, that will
     take precedence.
 
+    Keep database-writing capability mixins off this common layer. Character
+    creation constructs a Character before Django has selected its database;
+    the components contrib initializes persistent ``component_names`` state
+    and therefore cannot safely run there. Quasar currently uses components
+    only for physical objects and containers.
     """
 
 
-class Object(ObjectParent, ContribRPObject):
+class Object(ComponentHolderMixin, ObjectParent, ContribRPObject):
     """
     This is the root Object typeclass, representing all entities that
     have an actual presence in-game. DefaultObjects generally have a

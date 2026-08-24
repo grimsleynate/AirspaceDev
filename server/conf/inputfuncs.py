@@ -26,6 +26,24 @@ as argument.
 
 """
 
+
+def gmcp(session, *args, **kwargs):
+    """Dispatch websocket GMCP packages to Quasar's explicit input handlers."""
+
+    package = str(args[0] if args else "").strip().lower()
+    handlers = {
+        "quasar.audio.supports": quasar_audio_supports,
+        "quasar.room_effects.supports": quasar_room_effects_supports,
+        "quasar.accessibility.get": quasar_accessibility_get,
+        "quasar.map.get": quasar_map_get,
+        "quasar.character.get": quasar_character_get,
+        "quasar.journal.get": quasar_journal_get,
+    }
+    handler = handlers.get(package)
+    if handler:
+        handler(session, *(args[1:] if len(args) > 1 else ()), **kwargs)
+
+
 def quasar_map_get(session, *args, **kwargs):
     """Let the React client request the active character's map snapshot."""
 
@@ -47,8 +65,34 @@ def quasar_audio_supports(session, *args, **kwargs):
         send_audio_scene(character, session=session, force=True)
 
 
+def quasar_room_effects_supports(session, *args, **kwargs):
+    """Negotiate native room visuals and immediately provide the active scene."""
+
+    session.protocol_flags["QUASAR_ROOM_EFFECTS"] = 1
+    character = session.puppet
+    if character:
+        from world.room_effects import send_room_effects
+
+        send_room_effects(character, session=session, force=True)
+
+
+def quasar_accessibility_get(session, *args, **kwargs):
+    """Return persistent accessibility settings to the native client."""
+
+    # Negotiation may arrive before the csessid login association. Preserve
+    # support now so Account.at_post_login can synchronize immediately.
+    session.protocol_flags["QUASAR_ACCESSIBILITY"] = 1
+    account = session.account
+    if account:
+        from world.accessibility import apply_accessibility_preferences
+
+        apply_accessibility_preferences(
+            account, session=session, character=session.puppet
+        )
+
+
 def quasar_character_get(session, *args, **kwargs):
-    """Let web and GMCP clients request an authoritative resource snapshot."""
+    """Let clients request resources, inventory, and equipment."""
 
     character = session.puppet
     if character:

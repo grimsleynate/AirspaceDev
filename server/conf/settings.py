@@ -26,6 +26,11 @@ put secret game- or server-specific settings in secret_settings.py.
 
 # Use the defaults from Evennia unless explicitly overridden
 from evennia.settings_default import *
+
+# Quasar's authored game help extends the small stock/developer catalog.
+FILE_HELP_ENTRY_MODULES = ["world.help_entries", "world.help_character_options"]
+# Exploration, combat, and progression achievements live with Quasar content.
+ACHIEVEMENT_CONTRIB_MODULES = ["world.achievement_data"]
 import json
 import os
 
@@ -93,6 +98,14 @@ GLOBAL_SCRIPTS["quasar_combat"] = {
     "repeats": 0,
     "persistent": True,
     "desc": "Quasar combat and career-resource ticker",
+}
+
+GLOBAL_SCRIPTS["quasar_vermin"] = {
+    "typeclass": "typeclasses.scripts.VerminSystem",
+    "interval": 20,
+    "repeats": 0,
+    "persistent": True,
+    "desc": "City vermin population and carcass cleanup ticker",
 }
 
 ######################################################################

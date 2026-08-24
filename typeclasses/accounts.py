@@ -137,6 +137,15 @@ class Account(ContribChargenAccount):
 
     """
 
+    def at_post_login(self, session=None, **kwargs):
+        """Restore accessibility, adopting pre-login screen-reader mode once."""
+
+        super().at_post_login(session=session, **kwargs)
+        if session:
+            from world.accessibility import apply_accessibility_preferences
+
+            apply_accessibility_preferences(self, session=session)
+
     def at_look(self, target=None, session=None, **kwargs):
         """Number characters in the OOC display for keyboard selection."""
 

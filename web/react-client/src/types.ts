@@ -35,6 +35,25 @@ export interface RoomEntity {
   id: string | number;
   name: string;
   hostile?: boolean;
+  readable?: boolean;
+  writable?: boolean;
+  editable?: boolean;
+  journal?: boolean;
+}
+
+export interface InventoryEntity {
+  id: string | number;
+  name: string;
+  description: string;
+  equipable: boolean;
+  equipped: boolean;
+  container: boolean;
+  capacity: number;
+  contents_count: number;
+  readable?: boolean;
+  writable?: boolean;
+  editable?: boolean;
+  journal?: boolean;
 }
 
 export interface MapSync {
@@ -105,6 +124,32 @@ export interface AudioStopEvent {
   channel?: "music" | "ambience" | "effects";
   all?: boolean;
   fade_ms?: number;
+}
+
+export interface RoomVisualEffect {
+  preset: "frontier_wayhouse" | "electric_flicker" | "night_insects";
+  intensity?: number;
+  period_ms?: number;
+}
+
+export interface RoomEffect {
+  id: string;
+  visual: RoomVisualEffect;
+}
+
+export interface RoomEffectsSync {
+  revision: number;
+  room: string | number | null;
+  period: "day" | "night";
+  effects: RoomEffect[];
+}
+
+export interface AccessibilitySync {
+  revision: number;
+  screenreader: boolean;
+  color_mode: "auto" | "ansi" | "256" | "truecolor" | "off";
+  room_effects: boolean;
+  ascii_maps: boolean;
 }
 
 export interface AudioSettings {
@@ -182,7 +227,14 @@ export interface CharacterResourceState {
     evasion: number;
     crit_chance: number;
     recovery_remaining: number;
+    active_skill?: {
+      key: string;
+      name: string;
+      command: string;
+    } | null;
   } | null;
+  inventory?: InventoryEntity[];
+  equipment?: InventoryEntity[];
 }
 
 export interface PortraitChoice {

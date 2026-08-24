@@ -27,3 +27,11 @@ here as project provenance and thanks to the creators.
 Do not add audio to this directory without recording its creator, source URL,
 license, original filename, and local filename in this document. Avoid
 noncommercial licenses so Quasar retains the option of commercial release.
+
+## Quasar procedural room ambience
+
+- Creator: Quasar project
+- Source: `tools/generate_room_ambience.py`
+- License: CC0 1.0 Universal (original project work dedicated to the public domain)
+- Local files: `ambience/wayhouse-lamps.wav`, `ambience/wayhouse-wind.wav`,
+  and `ambience/wayhouse-insects.wav`

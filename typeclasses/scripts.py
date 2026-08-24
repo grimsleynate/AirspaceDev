@@ -163,3 +163,25 @@ class CombatSystem(Script):
         from world.combat import tick_combat
 
         tick_combat()
+
+
+class VerminSystem(Script):
+    """Maintain capped ambient-hostile populations in registered cities."""
+
+    def at_script_creation(self):
+        self.key = "quasar_vermin"
+        self.desc = "Reconciles weak city vermin and expires old carcasses."
+        self.interval = 20
+        self.repeats = 0
+        self.persistent = True
+        self.start_delay = True
+
+    def at_start(self, **kwargs):
+        from world.vermin import maintain_vermin_population
+
+        maintain_vermin_population()
+
+    def at_repeat(self):
+        from world.vermin import maintain_vermin_population
+
+        maintain_vermin_population()

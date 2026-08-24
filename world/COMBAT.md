@@ -1,5 +1,11 @@
 # Quasar Combat Prototype
 
+> **Prototype status:** This file documents currently implemented plumbing, not
+> the governing combat design. Careers, specializations, and proof kits are
+> retired product assumptions. The current direction uses learnable major skill
+> trees with three active at once; see `../MUD_DESIGN_DOCUMENT.md`. No code
+> migration is part of the present design pass.
+
 This is an original, deliberately small combat foundation for feel-testing. It
 does not adapt a licensed tabletop rules engine. Every balance constant is near
 the top of `world/combat.py`; commands and typeclasses do not hide additional

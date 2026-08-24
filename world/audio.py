@@ -80,6 +80,9 @@ def build_audio_scene(room):
     scene = room.db.audio_scene
     music = room.db.audio_music or None
     ambience = room.db.audio_ambience
+    from world.room_effects import room_effect_audio_layers
+
+    ambience = [*_normalize_layers(ambience), *_normalize_layers(room_effect_audio_layers(room))]
     if not scene and room.db.map_area == TUTORIAL_AREA:
         scene, ambience = TUTORIAL_DECK_SCENES.get(
             room.db.map_z or 0,
@@ -97,7 +100,7 @@ def build_audio_scene(room):
         "revision": AUDIO_PROTOCOL_REVISION,
         "scene": str(scene),
         "music": music,
-        "ambience": _normalize_layers(ambience),
+        "ambience": ambience,
         "fade_ms": max(0, min(10_000, fade_ms)),
     }
 
@@ -106,13 +109,17 @@ def send_audio_scene(character, session=None, force=False):
     """Send the character's current room scene to one or all native clients."""
 
     payload = build_audio_scene(character.location if character else None)
+    silence = build_audio_scene(None)
     targets = [session] if session else _supported_sessions(character)
     for target in targets:
+        from world.accessibility import room_media_enabled
+
+        target_payload = payload if room_media_enabled(character, target) else silence
         flags = getattr(target, "protocol_flags", {})
-        if not force and flags.get("QUASAR_AUDIO_SCENE") == payload:
+        if not force and flags.get("QUASAR_AUDIO_SCENE") == target_payload:
             continue
-        flags["QUASAR_AUDIO_SCENE"] = payload
-        target.msg(quasar_audio_scene=payload)
+        flags["QUASAR_AUDIO_SCENE"] = target_payload
+        target.msg(quasar_audio_scene=target_payload)
     return payload
 
 
@@ -127,7 +134,10 @@ def emit_audio(character, event, **options):
         if key in options and options[key] is not None:
             payload[key] = options[key]
     for session in _supported_sessions(character):
-        session.msg(quasar_audio_play=payload)
+        from world.accessibility import room_media_enabled
+
+        if room_media_enabled(character, session):
+            session.msg(quasar_audio_play=payload)
     return payload
 
 

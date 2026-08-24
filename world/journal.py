@@ -39,6 +39,21 @@ def build_tutorial_tasks(character):
 
     if character.db.tutorial_complete:
         return []
+    if character.db.chargen_complete:
+        from world.opening_tutorial import room_prompt
+
+        room = character.location
+        role = str(getattr(getattr(room, "db", None), "tutorial_role", ""))
+        state = dict(character.db.opening_tutorial_progress or {})
+        shell = "The Last Night of Earth" if character.db.species == "human" else "Open Hatch"
+        objective = room_prompt(character, room) if room else "Reconnect to your private tutorial instance."
+        if role in {"aux_workshop", "workshop_alcove"}:
+            practiced = set(state.get("trees_practiced", []))
+            missing = [key for key in list(character.db.active_skill_trees or []) if key not in practiced]
+            objective = "Demonstrate your remaining active practice: " + ", ".join(key.replace("_", " ").title() for key in missing)
+        elif role in {"manifest_office", "guest_clinic"} and not state.get("background_used"):
+            objective = "USE MINISKILL ON EVIDENCE before continuing."
+        return [_entry("opening-tutorial", shell, objective, objective)]
     from world.tutorial import progress
 
     state = progress(character)

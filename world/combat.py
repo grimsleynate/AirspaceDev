@@ -355,6 +355,9 @@ def character_combat_stats(character):
     armor = _equipment_stat(character, "armor")
     crit = BASE_CRIT_CHANCE + _equipment_stat(character, "crit_bonus")
     damage_bonus = _equipment_stat(character, "damage_bonus") + max(0, level - 1)
+    if not weapon and str(character.db.species_benefit or "") == "raking_bite":
+        # A useful disarmed fallback, intentionally outscaled by real weapons.
+        damage_bonus += 1
     spec = specialization_key(character)
     weapon_family = str(weapon.db.weapon_family or "unarmed") if weapon else "unarmed"
     attack_category = str(
@@ -432,6 +435,8 @@ def current_target(character):
 
 def combat_payload(character):
     stats = character_combat_stats(character)
+    kit = specialization_kit(character) or {}
+    active_skill = kit.get("active")
     target = current_target(character)
     now = time()
     target_data = None
@@ -455,6 +460,15 @@ def combat_payload(character):
         "evasion": stats["evasion"],
         "crit_chance": stats["crit_chance"],
         "recovery_remaining": max(0.0, float(character.db.combat_recovery_until or 0) - now),
+        "active_skill": (
+            {
+                "key": active_skill["key"],
+                "name": active_skill["name"],
+                "command": f"cast {active_skill['key'].replace('_', ' ')}",
+            }
+            if active_skill
+            else None
+        ),
     }
 
 
@@ -635,6 +649,23 @@ def player_attack(character, hostile, now=None, automatic=False):
 
 
 def find_active_skill(character, query=""):
+    active_trees = list(character.db.active_skill_trees or [])
+    if active_trees:
+        from world.character_options import STARTER_TREE_ABILITIES
+
+        skills = []
+        for tree_key in active_trees:
+            definition = STARTER_TREE_ABILITIES.get(tree_key)
+            if definition:
+                skills.append({**definition, "tree_key": tree_key})
+        normalized = " ".join(str(query or "").lower().replace("_", " ").split())
+        if not normalized:
+            return skills[0] if skills else None
+        for skill in skills:
+            names = {skill["key"].replace("_", " "), skill["name"].lower(), *skill.get("aliases", ())}
+            if normalized in names:
+                return skill
+        return None
     kit = specialization_kit(character)
     active = kit.get("active") if kit else None
     if not active:
@@ -645,15 +676,14 @@ def find_active_skill(character, query=""):
 
 
 def _cooldown_remaining(character, skill, now):
-    cooldowns = dict(character.db.skill_cooldowns or {})
-    return max(0.0, float(cooldowns.get(skill["key"], 0)) - now)
+    return max(0.0, float(character.cooldowns.data.get(skill["key"], 0)) - now)
 
 
 def use_active_skill(character, skill_query, hostile=None, now=None):
     now = time() if now is None else now
     skill = find_active_skill(character, skill_query)
     if not skill:
-        character.msg("That active skill is not available to your specialization. Use |wskills|n to review your kit.")
+        character.msg("That ability is not in an active Ability Tree. Use |wskills|n to review your current build.")
         return None
     if character.db.incapacitated:
         character.msg("You cannot cast while incapacitated.")
@@ -679,11 +709,12 @@ def use_active_skill(character, skill_query, hostile=None, now=None):
 
     engage(character, hostile, now=now)
     was_telegraphing = bool(hostile.db.combat_intent)
+    focus = max(0, min(3, int(character.db.combat_focus or 0)))
     result = resolve_attack(
         character,
         hostile,
         action_name=skill["name"],
-        damage_multiplier=skill.get("damage_multiplier", 1.0),
+        damage_multiplier=skill.get("damage_multiplier", 1.0) + (0.1 * focus),
         accuracy_bonus=skill.get("accuracy_bonus", 0),
         armor_pierce=skill.get("armor_pierce", 0.0),
     )
@@ -694,10 +725,30 @@ def use_active_skill(character, skill_query, hostile=None, now=None):
             character.msg(f"|c{skill['name']} breaks {hostile.key}'s prepared attack.|n")
         else:
             character.msg(f"{hostile.key} was not preparing an attack, but its next action is delayed.")
-    cooldowns = dict(character.db.skill_cooldowns or {})
-    cooldowns[skill["key"]] = now + float(skill["cooldown"])
-    character.db.skill_cooldowns = cooldowns
+    if focus:
+        character.db.combat_focus = 0
+        character.msg(f"|c{skill['name']} consumes {focus} Focus for additional force.|n")
+    # Write through the contrib handler. Explicit timestamps keep combat tests
+    # and future simulations deterministic when they supply ``now``.
+    character.cooldowns.data[skill["key"]] = now + float(skill["cooldown"])
     character.db.combat_recovery_until = now + float(skill["recovery"])
+    tree_key = skill.get("tree_key")
+    if tree_key:
+        from typeclasses.opening_tutorial import OpeningRoom
+
+        if isinstance(character.location, OpeningRoom) and not character.db.opening_tutorial_complete:
+            pending = dict(character.db.tutorial_pending_skill_experience or {})
+            pending[tree_key] = min(30, int(pending.get(tree_key, 0)) + 10)
+            character.db.tutorial_pending_skill_experience = pending
+            state = dict(character.db.opening_tutorial_progress or {})
+            used = set(state.get("combat_trees_used", []))
+            used.add(tree_key)
+            state["combat_trees_used"] = sorted(used)
+            character.db.opening_tutorial_progress = state
+        else:
+            from world.character_traits import add_ability_experience
+
+            add_ability_experience(character, tree_key, 10)
     from world.resources import send_character_resources
 
     send_character_resources(character, force=True)
@@ -764,6 +815,13 @@ def defeat_hostile(hostile):
     share = max(1, reward // len(eligible)) if reward and eligible else 0
     for character in eligible:
         character.db.combat_target_id = None
+        from world.achievements import track_quasar_achievement
+
+        track_quasar_achievement(
+            character,
+            category="defeat",
+            tracking=str(hostile.db.achievement_key or hostile.key).lower(),
+        )
         if share:
             award_experience(character, share, source=hostile.key)
         else:
@@ -801,6 +859,61 @@ def handle_character_defeat(character):
     ensure_character_resources(character)
     restore_health(character)
     restore_primary_resource(character)
+    from typeclasses.opening_tutorial import OpeningRoom, OpeningHostile
+
+    if isinstance(character.location, OpeningRoom):
+        owner_id = character.id
+        rooms = [room for room in OpeningRoom.objects.all_family() if int(room.db.tutorial_owner_id or 0) == owner_id]
+        state = dict(character.db.opening_tutorial_progress or {})
+        defeats = int(state.get("defeat_count", 0)) + 1
+        if character.db.species == "human":
+            character.db.opening_tutorial_progress = {"shell": "human", "defeated": [], "defeat_count": defeats}
+            character.db.tutorial_pending_skill_experience = {}
+            character.cooldowns.clear()
+            character.db.combat_focus = 0
+            character.db.combat_balance = "ready"
+            character.db.reaction_ready_at = 0
+            character.db.opening_tutorial_decision = None
+            character.db.opening_tutorial_build_complete = False
+            from world.opening_tutorial import create_opening_tutorial
+
+            create_opening_tutorial(character, enter=True)
+            if defeats >= 2:
+                new_rooms = [room for room in OpeningRoom.objects.all_family() if int(room.db.tutorial_owner_id or 0) == owner_id]
+                for room in new_rooms:
+                    for obj in room.contents:
+                        if isinstance(obj, OpeningHostile):
+                            obj.db.health_max = min(18, int(obj.db.health_max or 18))
+                            obj.db.health_current = obj.db.health_max
+                            obj.db.damage_min, obj.db.damage_max = 1, 2
+            character.db.opening_tutorial_rooms_seen = []
+            assistance = " Hostile output has been reduced." if defeats >= 2 else ""
+            character.msg(f"|hYou wake violently in the shipboard berth.|n The Icarus alarm begins again. Your face, hands, and two practiced Ability Trees are exactly as the dream remembers them.{assistance}")
+            return
+        else:
+            state["defeat_count"] = defeats
+            state["clinic_recovery"] = True
+            start_role = "guest_clinic"
+        character.db.opening_tutorial_progress = state
+        character.db.tutorial_pending_skill_experience = {}
+        character.cooldowns.clear()
+        character.db.combat_focus = 0
+        character.db.combat_balance = "ready"
+        character.db.reaction_ready_at = 0
+        character.db.opening_tutorial_decision = None
+        if defeats >= 2:
+            for room in rooms:
+                for obj in room.contents:
+                    if isinstance(obj, OpeningHostile) and not obj.db.is_defeated:
+                        obj.db.health_max = min(18, int(obj.db.health_max or 18))
+                        obj.db.health_current = obj.db.health_max
+                        obj.db.damage_min, obj.db.damage_max = 1, 2
+        start = next((room for room in rooms if room.db.tutorial_role == start_role), None)
+        if start:
+            character.move_to(start, quiet=True, move_type="teleport")
+        assistance = " Hostile output has been reduced." if defeats >= 2 else ""
+        character.msg(f"Porter completes a local emergency recovery and returns you to the guest clinic. ‘Let us try awareness before unconsciousness this time.’{assistance}")
+        return
     character.msg("|rYou black out.|n Emergency recovery protocols stabilize you and the hostile breaks contact.")
 
 
@@ -828,6 +941,8 @@ def tick_hostile(hostile, now=None):
             reset_hostile(hostile)
         return
     character = resolve_object(hostile.db.combat_target_id)
+    if character and float(character.db.reaction_ready_at or 0) <= now:
+        character.db.combat_balance = "ready"
     if (
         not character
         or character.location != hostile.location

@@ -215,7 +215,9 @@ class Room(ObjectParent, ContribRPRoom):
         if not looker or looker.location != self:
             return appearance
 
-        map_enabled = looker.attributes.get("ascii_map_enabled", default=True)
+        from world.accessibility import ascii_maps_enabled
+
+        map_enabled = ascii_maps_enabled(looker)
         if not map_enabled:
             return appearance
         return f"{self.get_ascii_map(looker)}\n{appearance}"
@@ -271,7 +273,17 @@ class Room(ObjectParent, ContribRPRoom):
             if getattr(obj, "is_npc", False) or getattr(obj, "is_hostile", False)
         ]
         items = [
-            entity(obj)
+            entity(
+                obj,
+                readable=bool(getattr(obj, "is_readable_document", False)),
+                writable=bool(getattr(obj, "is_writable_document", False)),
+                editable=(
+                    bool(obj.can_edit_original(looker))
+                    if callable(getattr(obj, "can_edit_original", None))
+                    else False
+                ),
+                journal=bool(getattr(obj, "is_journal", False)),
+            )
             for obj in visible_objects
             if getattr(obj, "is_portable_item", False)
         ]
@@ -303,6 +315,13 @@ class Room(ObjectParent, ContribRPRoom):
             info["coord"] = {"id": area_id, "x": x, "y": y, "z": z}
 
         return info
+
+    def send_room_info(self):
+        """Refresh structured room data for every connected character here."""
+
+        for character in self.contents_get(content_type="character"):
+            if character.sessions.all():
+                character.msg(room_info=self.get_room_info(character))
 
     def at_desc(self, looker=None, **kwargs):
         """Record exploration and send fresh mapper data for this room."""

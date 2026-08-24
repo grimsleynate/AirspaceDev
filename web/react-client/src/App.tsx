@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
-  Box, Button, Chip, CssBaseline, Divider, Drawer, IconButton, Paper, Slider, Stack,
-  Tab, Tabs, TextField, ThemeProvider, Tooltip, Typography, createTheme,
+  Box, Button, Chip, CssBaseline, Divider, Drawer, IconButton, Menu, MenuItem, Paper,
+  Slider, Stack, Tab, Tabs, TextField, ThemeProvider, Tooltip, Typography, createTheme,
 } from "@mui/material";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
@@ -14,12 +14,21 @@ import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 
 import { AudioManager, DEFAULT_AUDIO_SETTINGS } from "./AudioManager";
 import { ansiToHtml, looksLikePasswordPrompt } from "./ansi";
+import { contextActions, type EntityContext } from "./contextActions";
+import { commandFromMxpLink } from "./consoleLinks";
+import { EVENNIA_COLOR_CSS } from "./evenniaColors";
 import { hydrateMap, updateMap } from "./mapStore";
+import {
+  buildHotbar, createHotbarProfile, functionKeyIndex, loadHotbarProfile,
+  recordHotbarCommand, saveHotbarProfile,
+} from "./hotbar";
 import { numpadCommand } from "./keyboard";
 import { ResourceHud } from "./ResourceHud";
+import { NightInsects, RoomEffects } from "./RoomEffects";
+import { commandWithTarget, cycleRoomTarget } from "./targeting";
 import type {
-  AudioSettings, CharacterResourceState, ChargenPreview, ClientConfig, JournalEntry, JournalSync, MapSync,
-  MappedRoom, OutputEntry, RoomEntity, RoomInfo,
+  AccessibilitySync, AudioSettings, CharacterResourceState, ChargenPreview, ClientConfig, JournalEntry, JournalSync, MapSync,
+  InventoryEntity, MappedRoom, OutputEntry, RoomEntity, RoomEffectsSync, RoomInfo,
 } from "./types";
 import { useEvenniaSocket } from "./useEvenniaSocket";
 import { WorldMap } from "./WorldMap";
@@ -59,8 +68,16 @@ function newEntry(id: number, text: string, kind: OutputEntry["kind"]): OutputEn
   return { id, html: ansiToHtml(text), kind };
 }
 
-function EntityLine({ label, entities, tone }: {
-  label: string; entities: RoomEntity[]; tone: "item" | "player" | "npc";
+function newHtmlEntry(id: number, html: string, kind: OutputEntry["kind"]): OutputEntry {
+  return { id, html, kind };
+}
+
+function EntityLine({ label, entities, tone, selectedId = null, onSelect }: {
+  label: string;
+  entities: RoomEntity[];
+  tone: "item" | "player" | "npc";
+  selectedId?: string | null;
+  onSelect?: (event: ReactMouseEvent, entity: RoomEntity) => void;
 }) {
   return (
     <Box className="room-entity-line">
@@ -69,13 +86,23 @@ function EntityLine({ label, entities, tone }: {
         <Typography
           component="span"
           key={`${entity.id}-${index}`}
-          className={`room-entity room-entity-${entity.hostile ? "hostile" : tone}`}
+          className={`room-entity room-entity-${entity.hostile ? "hostile" : tone}${selectedId === String(entity.id) ? " room-entity-targeted" : ""}`}
+          onClick={onSelect ? (event) => onSelect(event, entity) : undefined}
+          role={onSelect ? "button" : undefined}
+          aria-current={selectedId === String(entity.id) ? "true" : undefined}
         >
           {index ? ", " : ""}{entity.name}
         </Typography>
       )) : <Typography component="span" className="room-entity-empty">None.</Typography>}
     </Box>
   );
+}
+
+interface ActionMenuState {
+  x: number;
+  y: number;
+  context: EntityContext;
+  entity: RoomEntity | InventoryEntity;
 }
 
 function JournalList({ entries, kind, run }: {
@@ -107,9 +134,12 @@ export default function App({ config }: AppProps) {
   const [entries, setEntries] = useState<OutputEntry[]>([]);
   const [rooms, setRooms] = useState<Record<string, MappedRoom>>({});
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [actionMenu, setActionMenu] = useState<ActionMenuState | null>(null);
   const [characterResources, setCharacterResources] = useState<CharacterResourceState | null>(null);
   const [chargenPreview, setChargenPreview] = useState<ChargenPreview | null>(null);
   const [command, setCommand] = useState("");
+  const [hotbarProfile, setHotbarProfile] = useState(() => createHotbarProfile(null));
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [secretInput, setSecretInput] = useState(false);
@@ -125,6 +155,8 @@ export default function App({ config }: AppProps) {
   );
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(loadAudioSettings);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [roomEffects, setRoomEffects] = useState<RoomEffectsSync | null>(null);
+  const [accessibility, setAccessibility] = useState<AccessibilitySync | null>(null);
   const nextId = useRef(1);
   const outputEnd = useRef<HTMLDivElement | null>(null);
   const currentRoomIdRef = useRef<string | null>(null);
@@ -172,10 +204,21 @@ export default function App({ config }: AppProps) {
     if (looksLikePasswordPrompt(text)) setSecretInput(true);
   };
 
+  const appendHtml = (html: string, kind: OutputEntry["kind"] = "text") => {
+    if (!html) return;
+    setEntries((current) => [
+      ...current.slice(-(MAX_OUTPUT_ENTRIES - 1)),
+      newHtmlEntry(nextId.current++, html, kind),
+    ]);
+    if (looksLikePasswordPrompt(html.replace(/<[^>]*>/g, ""))) setSecretInput(true);
+  };
+
   const handlers = useMemo(
     () => ({
       onText: (text: string) => append(text, "text"),
       onPrompt: (text: string) => append(text, "prompt"),
+      onHtmlText: (html: string) => appendHtml(html, "text"),
+      onHtmlPrompt: (html: string) => appendHtml(html, "prompt"),
       onRoomInfo: (info: RoomInfo) => {
         const previousRoomId = currentRoomIdRef.current;
         const nextRoomId = String(info.num);
@@ -201,6 +244,14 @@ export default function App({ config }: AppProps) {
       onAudioStop: (event: Parameters<AudioManager["stop"]>[0]) => {
         audioManagerRef.current?.stop(event);
       },
+      onRoomEffects: (sync: RoomEffectsSync) => setRoomEffects(sync),
+      onAccessibility: (sync: AccessibilitySync) => {
+        setAccessibility(sync);
+        if (!sync.room_effects || sync.screenreader) {
+          audioManagerRef.current?.disable();
+          setAudioEnabled(false);
+        }
+      },
       onCharacterResources: (resources: CharacterResourceState) => {
         setCharacterResources(resources.character ? resources : null);
         if (resources.character) setChargenPreview(null);
@@ -211,6 +262,75 @@ export default function App({ config }: AppProps) {
     [],
   );
   const { status, sendCommand, reconnect } = useEvenniaSocket(config, handlers);
+  const currentRoom = currentRoomId ? rooms[currentRoomId] : undefined;
+  const roomTargets = currentRoom?.npcs || [];
+  const selectedTarget = roomTargets.find(
+    (target) => String(target.id) === selectedTargetId,
+  ) || null;
+  const inventory = characterResources?.inventory || [];
+  const equipment = characterResources?.equipment || [];
+  const backpack = inventory.find((item) => item.container);
+  const characterId = characterResources?.character?.id;
+  const hotbarActions = useMemo(
+    () => buildHotbar(hotbarProfile, characterResources?.combat?.active_skill),
+    [hotbarProfile, characterResources?.combat?.active_skill],
+  );
+
+  useEffect(() => {
+    setHotbarProfile(
+      characterId === undefined
+        ? createHotbarProfile(null)
+        : loadHotbarProfile(characterId, characterResources?.combat?.active_skill),
+    );
+  }, [characterId, characterResources?.combat?.active_skill?.command]);
+
+  const rememberCommand = useCallback((value: string) => {
+    if (characterId === undefined) return;
+    setHotbarProfile((current) => {
+      const next = recordHotbarCommand(
+        current,
+        value,
+        characterResources?.combat?.active_skill,
+      );
+      if (next !== current) saveHotbarProfile(characterId, next);
+      return next;
+    });
+  }, [characterId, characterResources?.combat?.active_skill]);
+
+  const openActionMenu = (
+    event: ReactMouseEvent,
+    context: EntityContext,
+    entity: RoomEntity | InventoryEntity,
+  ) => {
+    event.preventDefault();
+    if (context === "npc") setSelectedTargetId(String(entity.id));
+    setActionMenu({ x: event.clientX, y: event.clientY, context, entity });
+  };
+
+  useEffect(() => {
+    if (selectedTargetId && !roomTargets.some((target) => String(target.id) === selectedTargetId)) {
+      setSelectedTargetId(null);
+    }
+  }, [currentRoomId, roomTargets, selectedTargetId]);
+
+  useEffect(() => {
+    const handleTargetCycle = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Tab" ||
+        !characterResources?.character ||
+        secretInput ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.repeat
+      ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedTargetId((current) => cycleRoomTarget(roomTargets, current, event.shiftKey));
+    };
+    window.addEventListener("keydown", handleTargetCycle, { capture: true });
+    return () => window.removeEventListener("keydown", handleTargetCycle, { capture: true });
+  }, [characterResources?.character, roomTargets, secretInput]);
 
   useEffect(() => {
     const handleNumpad = (event: KeyboardEvent) => {
@@ -257,9 +377,11 @@ export default function App({ config }: AppProps) {
 
   const submit = () => {
     const value = command.trim();
-    if (!value || !sendCommand(value)) return;
+    const outgoing = commandWithTarget(value, selectedTarget);
+    if (!value || !sendCommand(outgoing)) return;
     if (!secretInput) {
       append(`> ${value}`, "command");
+      rememberCommand(value);
       setHistory((current) => [...current.filter((item) => item !== value), value].slice(-100));
     }
     setHistoryIndex(0);
@@ -268,22 +390,60 @@ export default function App({ config }: AppProps) {
   };
 
   const run = (value: string) => {
-    if (!sendCommand(value)) return;
+    if (!sendCommand(commandWithTarget(value, selectedTarget))) return;
     append(`> ${value}`, "command");
+    rememberCommand(value);
   };
+
+  const runConsoleLink = (event: ReactMouseEvent<HTMLElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest('a[id="mxplink"]');
+    const value = commandFromMxpLink(link);
+    if (!value) return;
+    // Capture prevents Evennia's legacy inline handler from looking for the
+    // legacy global client. The React socket owns submission in this client.
+    event.preventDefault();
+    event.stopPropagation();
+    run(value);
+  };
+
+  useEffect(() => {
+    const handleFunctionKey = (event: KeyboardEvent) => {
+      const slot = functionKeyIndex(event.key);
+      if (
+        slot === null ||
+        !characterResources?.character ||
+        secretInput ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.repeat
+      ) return;
+      const action = hotbarActions[slot];
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+      run(action.command);
+    };
+    window.addEventListener("keydown", handleFunctionKey, { capture: true });
+    return () => window.removeEventListener("keydown", handleFunctionKey, { capture: true });
+  }, [characterResources?.character, hotbarActions, secretInput, selectedTarget, sendCommand]);
 
   const toggleMap = () => {
     const visible = !mapVisible;
     setMapVisible(visible);
     localStorage.setItem(MAP_VISIBLE_KEY, String(visible));
   };
-  const currentRoom = currentRoomId ? rooms[currentRoomId] : undefined;
   const statusColor = status === "connected" ? "success" : status === "connecting" ? "warning" : "error";
 
   return (
     <ThemeProvider theme={theme}>
+      <style>{EVENNIA_COLOR_CSS}</style>
       <CssBaseline />
-      <Box className={`app-shell ${mapVisible ? "with-map" : "without-map"}`}>
+      <Box className={`app-shell ${mapVisible && !accessibility?.screenreader ? "with-map" : "without-map"}${accessibility?.screenreader ? " accessibility-screenreader" : ""}`}>
+        <RoomEffects sync={accessibility?.room_effects ? roomEffects : null} />
         <Paper square elevation={0} className="topbar">
           <Stack direction="row" sx={{ alignItems: "center" }} spacing={1.5} className="brand">
             <span className="brand-mark">Q</span>
@@ -303,11 +463,11 @@ export default function App({ config }: AppProps) {
                 {audioEnabled ? <VolumeUpRoundedIcon /> : <VolumeOffRoundedIcon />}
               </IconButton>
             </Tooltip>
-            <Tooltip title={mapVisible ? "Hide map" : "Show map"}>
+            {!accessibility?.screenreader && <Tooltip title={mapVisible ? "Hide map" : "Show map"}>
               <IconButton aria-label={mapVisible ? "Hide map" : "Show map"} color={mapVisible ? "primary" : "default"} onClick={toggleMap}>
                 <MapOutlinedIcon />
               </IconButton>
-            </Tooltip>
+            </Tooltip>}
             <Tooltip title="Settings">
               <IconButton aria-label="Open settings" onClick={() => setSettingsOpen(true)}><SettingsOutlinedIcon /></IconButton>
             </Tooltip>
@@ -379,11 +539,36 @@ export default function App({ config }: AppProps) {
             )}
             {leftTab === 1 && (
               <Stack spacing={2}>
-                <Inventory2OutlinedIcon color="primary" fontSize="large" />
-                <Typography variant="body2" color="text.secondary">
-                  Inventory output appears in the main transcript until structured character data is added.
-                </Typography>
-                <Button variant="contained" onClick={() => run("inventory")}>Check inventory</Button>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                  <Inventory2OutlinedIcon color="primary" />
+                  <Typography variant="h6">Inventory ({inventory.length}/8)</Typography>
+                </Stack>
+                <Box className="inventory-entity-list">
+                  {inventory.length ? inventory.map((item) => (
+                    <Button
+                      key={item.id}
+                      className="inventory-entity-button"
+                      onClick={(event) => openActionMenu(event, "inventory", item)}
+                    >
+                      <span>{item.name}</span>
+                      {item.container && <small>{item.contents_count}/{item.capacity}</small>}
+                    </Button>
+                  )) : <Typography variant="body2" color="text.secondary">Nothing carried.</Typography>}
+                </Box>
+                <Divider />
+                <Typography variant="overline" color="text.secondary">Equipped</Typography>
+                <Box className="inventory-entity-list">
+                  {equipment.length ? equipment.map((item) => (
+                    <Button
+                      key={item.id}
+                      className="inventory-entity-button equipped"
+                      onClick={(event) => openActionMenu(event, "equipment", item)}
+                    >
+                      <span>{item.name}</span>
+                    </Button>
+                  )) : <Typography variant="body2" color="text.secondary">Nothing equipped.</Typography>}
+                </Box>
+                <Button variant="outlined" onClick={() => run("inventory")}>Show text inventory</Button>
               </Stack>
             )}
             {leftTab === 2 && (
@@ -396,10 +581,11 @@ export default function App({ config }: AppProps) {
               </Stack>
             )}
           </Box>
+          <NightInsects sync={accessibility?.room_effects ? roomEffects : null} />
         </Paper>
 
         <Box component="main" className="terminal-panel">
-          <Box className="output" role="log" aria-live="polite" style={{ fontSize }}>
+          <Box className="output" role="log" aria-live="polite" style={{ fontSize }} onClickCapture={runConsoleLink}>
             {entries.length === 0 && (
               <Box className="welcome-card">
                 <Typography variant="h4">Opening a channel to Quasar…</Typography>
@@ -430,9 +616,23 @@ export default function App({ config }: AppProps) {
               <SendRoundedIcon />
             </IconButton>
           </Paper>
+          <Paper square elevation={8} className="command-hotbar" aria-label="Adaptive command hotbar">
+            {hotbarActions.map((action, index) => (
+              <Tooltip key={`${index}-${action.command}`} title={action.command} placement="top">
+                <Button
+                  className="hotbar-button"
+                  disabled={status !== "connected" || !characterResources?.character}
+                  onClick={() => run(action.command)}
+                >
+                  <kbd>F{index + 1}</kbd>
+                  <span>{action.label}</span>
+                </Button>
+              </Tooltip>
+            ))}
+          </Paper>
         </Box>
 
-        {mapVisible && (
+        {mapVisible && !accessibility?.screenreader && (
           <Paper component="aside" square elevation={0} className="map-panel">
             <Box className="map-pane">
               <Box className="map-heading">
@@ -454,9 +654,25 @@ export default function App({ config }: AppProps) {
                     <Typography variant="subtitle1" className="room-panel-title">{currentRoom.name}</Typography>
                     <Typography className="room-description">{currentRoom.description || "No description is available."}</Typography>
                     <Divider />
-                    <EntityLine label="Items" entities={currentRoom.items} tone="item" />
-                    <EntityLine label="Players" entities={currentRoom.players} tone="player" />
-                    <EntityLine label="NPCs" entities={currentRoom.npcs} tone="npc" />
+                    <EntityLine
+                      label="Items"
+                      entities={currentRoom.items}
+                      tone="item"
+                      onSelect={(event, item) => openActionMenu(event, "room-item", item)}
+                    />
+                    <EntityLine
+                      label="Players"
+                      entities={currentRoom.players}
+                      tone="player"
+                      onSelect={(event, player) => openActionMenu(event, "player", player)}
+                    />
+                    <EntityLine
+                      label="NPCs"
+                      entities={currentRoom.npcs}
+                      tone="npc"
+                      selectedId={selectedTargetId}
+                      onSelect={(event, target) => openActionMenu(event, "npc", target)}
+                    />
                   </Stack> : <Typography color="text.secondary">No room information available.</Typography>
                 )}
                 {rightTab === 1 && <JournalList entries={journal?.quests || []} kind="quest" run={run} />}
@@ -466,6 +682,34 @@ export default function App({ config }: AppProps) {
           </Paper>
         )}
       </Box>
+
+      <Menu
+        open={Boolean(actionMenu)}
+        onClose={() => setActionMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={actionMenu ? { top: actionMenu.y, left: actionMenu.x } : undefined}
+      >
+        {actionMenu && [
+          ...(actionMenu.context === "npc" ? [{
+            label: selectedTargetId === String(actionMenu.entity.id) ? "Clear Target" : "Target",
+            command: "",
+          }] : []),
+          ...contextActions(actionMenu.context, actionMenu.entity, backpack),
+        ].map((action) => (
+          <MenuItem
+            key={`${action.label}-${action.command}`}
+            onClick={() => {
+              if (action.command) run(action.command);
+              else setSelectedTargetId((current) => (
+                current === String(actionMenu.entity.id) ? null : String(actionMenu.entity.id)
+              ));
+              setActionMenu(null);
+            }}
+          >
+            {action.label}
+          </MenuItem>
+        ))}
+      </Menu>
 
       <Drawer anchor="right" open={settingsOpen} onClose={() => setSettingsOpen(false)}>
         <Box className="settings-drawer" role="presentation">

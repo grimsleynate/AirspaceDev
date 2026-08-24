@@ -1,5 +1,11 @@
 # Character resources and oxygen
 
+> **Prototype status:** This file documents the current implementation. Its
+> career-resource taxonomy and creation-menu Synth rules are superseded by the
+> second-edition design, where Synth is earned ascension and combat uses active
+> skill trees. It remains accurate only for existing code until a separate
+> implementation migration is authorized.
+
 Quasar's character vitals are server-authoritative. The React client renders
 the state it receives; it does not infer species, career, atmosphere, or oxygen
 rules locally.

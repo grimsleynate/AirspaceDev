@@ -18,6 +18,41 @@ PORTRAITS = {
         "label": "Human — Female",
         "url": "/static/webclient/portraits/human-feminine.png?v=20260815-2",
     },
+    "oruun_neutral": {
+        "id": "oruun_neutral",
+        "species": "oruun",
+        "gender": None,
+        "label": "Oruun",
+        "url": "/static/webclient/portraits/oruun-neutral.png?v=20260823-1",
+    },
+    "nimri_neutral": {
+        "id": "nimri_neutral",
+        "species": "nimri",
+        "gender": None,
+        "label": "Nimri",
+        "url": "/static/webclient/portraits/nimri-neutral.png?v=20260823-1",
+    },
+    "serev_neutral": {
+        "id": "serev_neutral",
+        "species": "serev",
+        "gender": None,
+        "label": "Serev",
+        "url": "/static/webclient/portraits/serev-neutral.png?v=20260824-1",
+    },
+    "kaelith_neutral": {
+        "id": "kaelith_neutral",
+        "species": "kaelith",
+        "gender": None,
+        "label": "Kaelith",
+        "url": "/static/webclient/portraits/kaelith-neutral.png?v=20260823-1",
+    },
+    "veyari_neutral": {
+        "id": "veyari_neutral",
+        "species": "veyari",
+        "gender": None,
+        "label": "Veyari",
+        "url": "/static/webclient/portraits/veyari-neutral.png?v=20260824-1",
+    },
     "synth_neutral": {
         "id": "synth_neutral",
         "species": "synth",
@@ -47,10 +82,20 @@ def assign_default_portrait(character, species=None, gender=None):
     species = str(species or character.db.species or "human").strip().lower()
     if species == "synth":
         portrait = PORTRAITS["synth_neutral"]
-    else:
+    elif species == "human":
         gender = str(gender or character.db.gender or "neutral").strip().lower()
         portrait_gender = gender if gender in {"male", "female"} else choice(("male", "female"))
         portrait = PORTRAITS[f"human_{portrait_gender}"]
+    else:
+        portrait = PORTRAITS.get(f"{species}_neutral")
+        if not portrait:
+            portrait = {
+                "id": f"{species}_unillustrated",
+                "species": species,
+                "gender": gender,
+                "label": f"{species.title()} — portrait pending",
+                "url": "",
+            }
     character.db.portrait_id = portrait["id"]
     character.db.portrait_url = portrait["url"]
     return portrait
@@ -87,6 +132,6 @@ def send_chargen_preview(caller, character, step):
             "gender": str(character.db.gender or "") or None,
             "pre_synth_gender": str(character.db.pre_synth_gender or "") or None,
             "portrait": portrait,
-            "choices": portrait_choices(species) if species in {"human", "synth"} else [],
+            "choices": portrait_choices(species),
         }
     )

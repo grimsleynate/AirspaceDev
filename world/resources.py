@@ -2,10 +2,10 @@
 
 from math import ceil
 
-from world.character_options import CAREERS
+from world.character_options import BACKGROUNDS, BASIC_SKILL_TREES, CAREERS
 
 
-RESOURCE_PROTOCOL_REVISION = 3
+RESOURCE_PROTOCOL_REVISION = 6
 DEFAULT_HEALTH = 100
 DEFAULT_PRIMARY_RESOURCE = 100
 ASPHYXIA_GRACE_SECONDS = 10
@@ -42,9 +42,14 @@ def is_synth(character):
 def locomotion_chassis(character):
     """Return the installed locomotion system used by wearable restrictions."""
 
-    default = "wheel" if is_synth(character) else "bipedal"
+    species = str(character.db.species or "human").strip().lower()
+    default = {
+        "synth": "wheel", "human": "bipedal", "oruun": "aquatic_dense",
+        "nimri": "bipedal", "serev": "symbiotic", "kaelith": "radial",
+        "veyari": "tripodal",
+    }.get(species, "bipedal")
     chassis = str(character.db.locomotion_chassis or default).strip().lower()
-    if chassis not in {"wheel", "bipedal"}:
+    if chassis not in {"wheel", "bipedal", "aquatic_dense", "symbiotic", "radial", "tripodal"}:
         chassis = default
     character.db.locomotion_chassis = chassis
     return chassis
@@ -106,10 +111,15 @@ def ensure_character_resources(character):
         primary_max,
     )
 
-    character.db.health_max = health_max
-    character.db.health_current = health_current
-    character.db.primary_resource_max = primary_max
-    character.db.primary_resource_current = primary_current
+    from world.character_traits import ensure_resource_traits
+
+    ensure_resource_traits(
+        character,
+        health_max=health_max,
+        health_current=health_current,
+        primary_max=primary_max,
+        primary_current=primary_current,
+    )
     return character
 
 
@@ -117,11 +127,21 @@ def initialize_character(character, include_starter_gear=False):
     """Initialize resource state and optionally reconcile species starter gear."""
 
     ensure_character_resources(character)
+    from world.character_traits import ensure_skill_traits
+
+    ensure_skill_traits(character)
     if include_starter_gear:
-        from typeclasses.items import ensure_starter_combat_gear, ensure_starter_oxygen_tank
+        from typeclasses.datapads import ensure_starter_datapad
+        from typeclasses.items import (
+            ensure_starter_backpack,
+            ensure_starter_combat_gear,
+            ensure_starter_oxygen_tank,
+        )
 
         ensure_starter_oxygen_tank(character)
         ensure_starter_combat_gear(character)
+        ensure_starter_backpack(character)
+        ensure_starter_datapad(character)
         ensure_character_resources(character)
     return character
 
@@ -190,12 +210,40 @@ def build_resource_payload(character):
     specialization_key = str(character.db.specialization or "").strip().lower()
     career = CAREERS.get(career_key, {})
     specialization = career.get("specializations", {}).get(specialization_key, {})
+    background = BACKGROUNDS.get(str(character.db.background or ""), {})
+    active_tree_names = [
+        BASIC_SKILL_TREES.get(
+            key, {"name": str(key).replace("_", " ").title()}
+        )["name"]
+        for key in list(character.db.active_skill_trees or [])
+    ]
     from world.portraits import ensure_character_portrait
 
     portrait = ensure_character_portrait(character)
 
     from world.combat import combat_payload, progression_payload
 
+    def item_payload(item):
+        editable = getattr(item, "can_edit_original", None)
+        return {
+            "id": item.id,
+            "name": item.key,
+            "description": str(item.db.desc or ""),
+            "equipable": callable(getattr(item, "equip_to", None)),
+            "equipped": bool(getattr(item, "is_equipped", False)),
+            "container": bool(getattr(item, "is_container", False)),
+            "capacity": int(getattr(item, "capacity", 0) or 0),
+            "contents_count": len(item.contents),
+            "readable": bool(getattr(item, "is_readable_document", False)),
+            "writable": bool(getattr(item, "is_writable_document", False)),
+            "editable": bool(editable(character)) if callable(editable) else False,
+            "journal": bool(getattr(item, "is_journal", False)),
+        }
+
+    inventory = getattr(character, "inventory_items", lambda: character.contents)()
+    equipment = [
+        item for item in character.contents if getattr(item, "is_equipped", False)
+    ]
     return {
         "revision": RESOURCE_PROTOCOL_REVISION,
         "character": {
@@ -213,6 +261,8 @@ def build_resource_payload(character):
             "specialization": specialization.get(
                 "name", str(character.db.specialization or "Unassigned")
             ),
+            "background": background.get("name", str(character.db.background or "Unassigned")),
+            "active_skill_trees": active_tree_names,
             "level": int(character.db.level or 1),
         },
         "health": {
@@ -239,6 +289,8 @@ def build_resource_payload(character):
         },
         "progression": progression_payload(character),
         "combat": combat_payload(character),
+        "inventory": [item_payload(item) for item in inventory],
+        "equipment": [item_payload(item) for item in equipment],
     }
 
 
@@ -311,6 +363,8 @@ def clear_character_resources(session):
             "environment": None,
             "progression": None,
             "combat": None,
+            "inventory": [],
+            "equipment": [],
         }
     )
 
@@ -322,10 +376,14 @@ def apply_damage(character, amount, damage_type="damage", message=True):
     amount = max(0, int(ceil(amount)))
     if not amount:
         return 0
-    before = int(character.db.health_current)
+    health = character.traits.health
+    before = int(health.current)
     after = max(0, before - amount)
     actual = before - after
-    character.db.health_current = after
+    health.current = after
+    from world.character_traits import sync_resource_attributes
+
+    sync_resource_attributes(character)
     if message and actual:
         if damage_type == "asphyxiation":
             character.msg(f"|rYou take {actual} asphyxiation damage.|n")
@@ -346,14 +404,18 @@ def restore_health(character, amount=None):
     """Restore health for future medical and tutorial recovery systems."""
 
     ensure_character_resources(character)
-    maximum = int(character.db.health_max)
+    health = character.traits.health
+    maximum = int(health.max)
     amount = maximum if amount is None else max(0, int(amount))
-    before = int(character.db.health_current)
-    character.db.health_current = min(maximum, before + amount)
-    if character.db.health_current > 0:
+    before = int(health.current)
+    health.current = min(maximum, before + amount)
+    from world.character_traits import sync_resource_attributes
+
+    sync_resource_attributes(character)
+    if health.current > 0:
         character.db.incapacitated = False
     send_character_resources(character)
-    return int(character.db.health_current) - before
+    return int(health.current) - before
 
 
 def spend_primary_resource(character, amount):
@@ -361,10 +423,14 @@ def spend_primary_resource(character, amount):
 
     ensure_character_resources(character)
     amount = max(0, int(amount))
-    current = int(character.db.primary_resource_current)
+    primary = character.traits.primary_resource
+    current = int(primary.current)
     if amount > current:
         return False
-    character.db.primary_resource_current = current - amount
+    primary.current = current - amount
+    from world.character_traits import sync_resource_attributes
+
+    sync_resource_attributes(character)
     send_character_resources(character)
     return True
 
@@ -373,13 +439,17 @@ def restore_primary_resource(character, amount=None):
     """Restore skill, tech, or acuity points up to the derived maximum."""
 
     ensure_character_resources(character)
-    maximum = int(character.db.primary_resource_max)
+    primary = character.traits.primary_resource
+    maximum = int(primary.max)
     amount = maximum if amount is None else max(0, int(amount))
-    before = int(character.db.primary_resource_current)
-    character.db.primary_resource_current = min(maximum, before + amount)
-    if character.db.primary_resource_current != before:
+    before = int(primary.current)
+    primary.current = min(maximum, before + amount)
+    from world.character_traits import sync_resource_attributes
+
+    sync_resource_attributes(character)
+    if primary.current != before:
         send_character_resources(character)
-    return int(character.db.primary_resource_current) - before
+    return int(primary.current) - before
 
 
 def _oxygen_warning_level(remaining, capacity):

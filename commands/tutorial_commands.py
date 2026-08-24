@@ -54,6 +54,10 @@ class CmdUseTutorial(Command):
 
     def func(self):
         query = " ".join(self.args.lower().split())
+        from world.opening_tutorial import use_opening_interaction
+
+        if use_opening_interaction(self.caller, query):
+            return
         from world import tutorial
 
         if not query:
@@ -152,6 +156,11 @@ class CmdBindPorter(Command):
     help_category = "Tutorial"
 
     def func(self):
+        from typeclasses.opening_tutorial import BoundPorter
+
+        if any(isinstance(obj, BoundPorter) for obj in self.caller.contents):
+            self.caller.msg("Porter is already bound. Unbinding is a separate, deliberate multi-confirmation process; billing status cannot trigger it.")
+            return
         from world.tutorial import bind_porter
 
         bind_porter(self.caller)
@@ -166,6 +175,11 @@ class CmdTouchPorter(Command):
     help_category = "Tutorial"
 
     def func(self):
+        from typeclasses.opening_tutorial import BoundPorter
+
+        if any(isinstance(obj, BoundPorter) for obj in self.caller.contents):
+            self.caller.msg("Porter displays your registered Return House and current coverage. Recall is not demonstrated from inside Dawnline.")
+            return
         from world.tutorial import touch_porter
 
         touch_porter(self.caller)
@@ -180,6 +194,16 @@ class CmdAskPorter(Command):
     help_category = "Interaction"
 
     def func(self):
+        from typeclasses.opening_tutorial import BoundPorter
+
+        porter = next((obj for obj in self.caller.contents if isinstance(obj, BoundPorter)), None)
+        if porter:
+            porter.at_talk(self.caller)
+            return
+        binding = dict(self.caller.db.porter_binding or {})
+        if binding.get("bound"):
+            self.caller.msg("Your physical Porter terminal is unavailable, but the redundant continuity-service record remains bound. Visit a Return House for replacement controls.")
+            return
         from world.tutorial import porter_conversation
 
         topic = self.args.strip()
@@ -196,6 +220,15 @@ class CmdPorterStatus(Command):
     help_category = "Tutorial"
 
     def func(self):
+        from typeclasses.opening_tutorial import BoundPorter
+
+        porter = next((obj for obj in self.caller.contents if isinstance(obj, BoundPorter)), None)
+        binding = dict(self.caller.db.porter_binding or {})
+        if porter or binding.get("bound"):
+            self.caller.msg(
+                f"|hPorter status|n\nBound: yes\nTerminal: {'carried' if porter else 'unavailable; binding record intact'}\nRegistered return: {binding.get('coverage', getattr(getattr(porter, 'db', None), 'coverage', 'Dawnline Return House'))}\nBilling: {binding.get('billing_status', 'active')}\nContinuity protection: active\nMissed-payment consequence: rate-limited ads, never automatic unbinding"
+            )
+            return
         from world.tutorial import porter_conversation
 
         porter_conversation(self.caller, topic="status")

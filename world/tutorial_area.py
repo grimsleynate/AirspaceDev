@@ -1,19 +1,16 @@
-"""Legacy batch entry point for Quasar's shared tutorial topology.
+"""Batch entry point for Quasar's private tutorial instances.
 
-The distress satellite topology is verified automatically at server startup by
-``world.tutorial``. Running ``batchcode tutorial_area`` is no longer required;
-this file remains as a safe manual repair and legacy-character migration tool.
+Running ``batchcode tutorial_area`` verifies or creates one complete distress
+satellite for every unfinished character.
 """
 
 from typeclasses.characters import Character
 from world.tutorial import (
-    ensure_global_tutorial_area,
     ensure_tutorial_instance,
     is_legacy_tutorial_location,
 )
 
 
-ensure_global_tutorial_area()
 migrated = []
 for character in Character.objects.all_family():
     if character.db.tutorial_complete:
@@ -22,7 +19,7 @@ for character in Character.objects.all_family():
     ensure_tutorial_instance(character, enter=should_enter)
     migrated.append(character.key)
 
-print("Verified Quasar's shared tutorial topology and private character layers.")
+print("Verified Quasar's private per-character tutorial instances.")
 if migrated:
     print("Verified unfinished tutorial characters: " + ", ".join(migrated))
 else:

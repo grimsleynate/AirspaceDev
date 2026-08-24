@@ -13,21 +13,19 @@ See [DESCRIPTION_STYLE.md](DESCRIPTION_STYLE.md) for Quasar's semantic color
 palette, room-output structure, entity-description rules, and puzzle-clue
 writing standard.
 
-See [TUTORIAL_DESIGN.md](TUTORIAL_DESIGN.md) for The Long-Dead Signal's isolated
-derelict-satellite tutorial flow, room copy, oxygen and vacuum rules,
-interactions, the Personal Portable Porter and uploaded-intelligence canon,
-Shardwake Reaver evidence, dialogue, items, survivors, enemies, morality,
-persistence, acceptance criteria, and implementation sequence.
+See [TUTORIAL_DESIGN.md](TUTORIAL_DESIGN.md) for the current two-shell tutorial
+direction: the Human ancestral Gate dream, the native Open Hatch emergency,
+shared combat and two-Basic proficiency lessons, bound Porter, voluntary
+permadeath, and convergence on the next morning in private Dawnline rooms.
 
-The tutorial uses one automatically verified 21-room topology. Character
-creation adds only a private, invisible story layer of actors, items, state,
-atmosphere, and explored-map visits; players sharing a physical room cannot see
-or hear one another. Unfinished legacy characters migrate on their next login.
-The old ``batchcode tutorial_area`` entry point is now only a manual repair and
-migration tool.
+The implemented 21-room derelict-satellite tutorial is a retired learning
+prototype. Its builders, commands, tests, and migration helpers remain in the
+repository until an implementation plan replaces them; they are not current
+world canon.
 
-See [RESOURCES.md](RESOURCES.md) for Health, Tech Points, Acuity, Skill Points,
-the organic/Synth oxygen rules, equipment integration, and GMCP payloads.
+See [RESOURCES.md](RESOURCES.md) for the currently implemented prototype
+resources and protocol payloads. Its career and creation-menu Synth assumptions
+are superseded by the governing design.
 
-See [COMBAT.md](COMBAT.md) for the playable combat prototype, commands, starter
-gear, specialization kits, centralized math, XP curve, and tuning checklist.
+See [COMBAT.md](COMBAT.md) for the playable plumbing prototype. Its
+specialization kits are not the current three-active-tree combat design.
