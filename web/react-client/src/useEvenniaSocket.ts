@@ -135,13 +135,26 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
 
     socket.onopen = () => {
       setStatus("connected");
+      const sendGmcp = (name: string, data: unknown = "") => {
+        socket.send(
+          JSON.stringify([
+            "gmcp",
+            [
+              name,
+              typeof data === "string" ? data : JSON.stringify(data),
+            ],
+            {},
+          ]),
+        );
+      };
+
+      sendGmcp("Quasar.Audio.Supports", { version: 1 });
+      sendGmcp("Quasar.Room_Effects.Supports", { version: 1 });
+      sendGmcp("Quasar.Accessibility.Get");
+      sendGmcp("Quasar.Map.Get");
+      sendGmcp("Quasar.Character.Get");
+      sendGmcp("Quasar.Journal.Get");
       socket.send(JSON.stringify(["csessid", [config.browserSession || pageId], {}]));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Audio.Supports", data: JSON.stringify({ version: 1 }) }));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Room_Effects.Supports", data: JSON.stringify({ version: 1 }) }));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Accessibility.Get", data: "" }));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Map.Get", data: "" }));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Character.Get", data: "" }));
-      socket.send(JSON.stringify({ proto: "gmcp", id: "Quasar.Journal.Get", data: "" }));
     };
     socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
@@ -180,7 +193,7 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
       window.clearInterval(keepAlive);
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ proto: "websocket_close", id: "", data: "" }));
+        socket.send(JSON.stringify(["websocket_close", [], {}]));
       }
       if (socket && socket.readyState !== WebSocket.CLOSED) socket.close(1000, "Client closed");
       if (socketRef.current === socket) socketRef.current = null;
