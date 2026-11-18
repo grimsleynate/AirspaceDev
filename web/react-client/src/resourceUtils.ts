@@ -1,6 +1,6 @@
-import type { CharacterResourceState, PrimaryResourceKind } from "./types";
+import type { CharacterResourceState } from "./types";
 
-export type ResourceBarKind = "health" | PrimaryResourceKind | "oxygen" | "target";
+export type ResourceBarKind = "health" | "target";
 
 export interface ResourceBarData {
   kind: ResourceBarKind;
@@ -15,19 +15,8 @@ export function resourcePercent(current: number, maximum: number): number {
 }
 
 export function visibleResourceBars(state: CharacterResourceState | null): ResourceBarData[] {
-  if (!state?.character || !state.health || !state.primary) return [];
-  const bars: ResourceBarData[] = [
-    { kind: "health", label: "Health", ...state.health },
-    {
-      kind: state.primary.kind,
-      label: state.primary.label,
-      current: state.primary.current,
-      max: state.primary.max,
-    },
-  ];
-  if (state.oxygen !== null) {
-    bars.push({ kind: "oxygen", label: "Oxygen", ...state.oxygen });
-  }
+  if (!state?.character || !state.health) return [];
+  const bars: ResourceBarData[] = [{ kind: "health", label: "Health", ...state.health }];
   if (state.combat?.target) {
     bars.push({
       kind: "target",

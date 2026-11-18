@@ -6,11 +6,9 @@ import type {
   AudioScene,
   AudioStopEvent,
   CharacterResourceState,
-  ChargenPreview,
   ClientConfig,
   ConnectionStatus,
   MapSync,
-  JournalSync,
   RoomInfo,
   RoomEffectsSync,
 } from "./types";
@@ -20,14 +18,12 @@ interface SocketHandlers {
   onHtmlPrompt: (html: string) => void;
   onRoomInfo: (room: RoomInfo) => void;
   onMapSync: (sync: MapSync) => void;
-  onJournalSync: (sync: JournalSync) => void;
   onAudioScene: (scene: AudioScene) => void;
   onAudioPlay: (event: AudioPlayEvent) => void;
   onAudioStop: (event: AudioStopEvent) => void;
   onRoomEffects: (sync: RoomEffectsSync) => void;
   onAccessibility: (sync: AccessibilitySync) => void;
   onCharacterResources: (state: CharacterResourceState) => void;
-  onChargenPreview: (preview: ChargenPreview) => void;
   onProtocol: (name: string, data: unknown) => void;
 }
 
@@ -47,22 +43,20 @@ function makeSocketUrl(config: ClientConfig, pageId: string): string {
 }
 
 // Evennia names websocket output after the Python outputfunc, e.g.
-// ``session.msg(quasar_map_sync=...)`` arrives as ``quasar_map_sync``. Telnet
-// clients receive the same output as GMCP ``Quasar.Map.Sync`` or MSDP.
+// ``session.msg(benben_map_sync=...)`` arrives as ``benben_map_sync``. Telnet
+// clients receive the same output as GMCP ``Benben.Map.Sync`` or MSDP.
 function routeStructured(command: string, data: unknown, handlers: SocketHandlers): void {
   switch (command) {
     case "room_info": handlers.onRoomInfo(data as RoomInfo); break;
-    case "quasar_map_sync": handlers.onMapSync(data as MapSync); break;
-    case "quasar_journal_sync": handlers.onJournalSync(data as JournalSync); break;
-    case "quasar_audio_scene": handlers.onAudioScene(data as AudioScene); break;
-    case "quasar_audio_play": handlers.onAudioPlay(data as AudioPlayEvent); break;
-    case "quasar_audio_stop": handlers.onAudioStop(data as AudioStopEvent); break;
-    case "quasar_room_effects_sync": handlers.onRoomEffects(data as RoomEffectsSync); break;
-    case "quasar_accessibility_sync": handlers.onAccessibility(data as AccessibilitySync); break;
-    case "quasar_character_resources":
+    case "benben_map_sync": handlers.onMapSync(data as MapSync); break;
+    case "benben_audio_scene": handlers.onAudioScene(data as AudioScene); break;
+    case "benben_audio_play": handlers.onAudioPlay(data as AudioPlayEvent); break;
+    case "benben_audio_stop": handlers.onAudioStop(data as AudioStopEvent); break;
+    case "benben_room_effects_sync": handlers.onRoomEffects(data as RoomEffectsSync); break;
+    case "benben_accessibility_sync": handlers.onAccessibility(data as AccessibilitySync); break;
+    case "benben_character_resources":
       handlers.onCharacterResources(data as CharacterResourceState);
       break;
-    case "quasar_chargen_preview": handlers.onChargenPreview(data as ChargenPreview); break;
     default: handlers.onProtocol(command, data);
   }
 }
@@ -116,17 +110,16 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
     socket.onopen = () => {
       setStatus("connected");
       // Each message names a function in server/conf/inputfuncs.py; telnet
-      // clients reach the same functions via GMCP (e.g. Quasar.Map.Get).
+      // clients reach the same functions via GMCP (e.g. Benben.Map.Get).
       const callInputFunc = (name: string, kwargs: Record<string, unknown> = {}) => {
         socket.send(JSON.stringify([name, [], kwargs]));
       };
 
-      callInputFunc("quasar_audio_supports", { version: 1 });
-      callInputFunc("quasar_room_effects_supports", { version: 1 });
-      callInputFunc("quasar_accessibility_get");
-      callInputFunc("quasar_map_get");
-      callInputFunc("quasar_character_get");
-      callInputFunc("quasar_journal_get");
+      callInputFunc("benben_audio_supports", { version: 1 });
+      callInputFunc("benben_room_effects_supports", { version: 1 });
+      callInputFunc("benben_accessibility_get");
+      callInputFunc("benben_map_get");
+      callInputFunc("benben_character_get");
       socket.send(JSON.stringify(["csessid", [config.browserSession || pageId], {}]));
     };
     socket.onmessage = (event) => {

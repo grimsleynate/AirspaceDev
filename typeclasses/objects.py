@@ -27,7 +27,7 @@ class ObjectParent:
     Keep database-writing capability mixins off this common layer. Character
     creation constructs a Character before Django has selected its database;
     the components contrib initializes persistent ``component_names`` state
-    and therefore cannot safely run there. Quasar currently uses components
+    and therefore cannot safely run there. Components are currently used
     only for physical objects and containers.
     """
 

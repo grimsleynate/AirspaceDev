@@ -8,7 +8,7 @@ function room(id: string, x: number, y: number, exits: Record<string, string>): 
     id,
     name: `Room ${id}`,
     area: "Test Area",
-    environment: "station",
+    environment: "interior",
     exits,
     x,
     y,

@@ -1,4 +1,4 @@
-"""Quasar achievement definitions and a small notification wrapper."""
+"""A small notification wrapper around Evennia's achievements contrib."""
 
 from evennia.contrib.game_systems.achievements import (
     get_achievement,
@@ -6,7 +6,7 @@ from evennia.contrib.game_systems.achievements import (
 )
 
 
-def track_quasar_achievement(achiever, **event):
+def track_achievement(achiever, **event):
     """Track an event and announce newly completed achievements."""
 
     completed = track_achievements(achiever, **event)

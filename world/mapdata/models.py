@@ -19,11 +19,11 @@ class CharacterMapVisit(models.Model):
     visited_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "quasar_character_map_visit"
+        db_table = "mapdata_character_map_visit"
         constraints = [
             models.UniqueConstraint(
                 fields=("character", "room"),
-                name="unique_quasar_character_room_visit",
+                name="unique_character_room_visit",
             )
         ]
 

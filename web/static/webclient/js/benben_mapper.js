@@ -1,13 +1,13 @@
 /*
- * Quasar web mapper.
+ * Benben web mapper.
  *
  * Consumes the same room_info payload that Evennia exposes to telnet clients
  * as GMCP Room.Info. The explored map is kept in this browser only.
  */
-let quasar_mapper = (function () {
+let benben_mapper = (function () {
     "use strict";
 
-    const STORAGE_VISIBLE = "quasar.mapper.visible.v1";
+    const STORAGE_VISIBLE = "benben.mapper.visible.v1";
     const SVG_NS = "http://www.w3.org/2000/svg";
     const STEP = 88;
     const directionVectors = {
@@ -120,14 +120,14 @@ let quasar_mapper = (function () {
         svg.replaceChildren();
         const current = rooms[currentId];
         if (!current) {
-            const empty = makeSvg("text", {x: 190, y: 130, class: "quasar-map-empty"});
+            const empty = makeSvg("text", {x: 190, y: 130, class: "benben-map-empty"});
             empty.textContent = "Enter the game to begin mapping.";
             svg.appendChild(empty);
             return;
         }
 
-        document.getElementById("quasar-map-room").textContent = current.name;
-        document.getElementById("quasar-map-area").textContent = current.area;
+        document.getElementById("benben-map-room").textContent = current.name;
+        document.getElementById("benben-map-area").textContent = current.area;
 
         const visibleRooms = Object.values(rooms).filter(
             (room) => room.area === current.area && (room.z || 0) === (current.z || 0)
@@ -150,7 +150,7 @@ let quasar_mapper = (function () {
                 const [x1, y1] = screenPoint(room);
                 const [x2, y2] = screenPoint(target);
                 edgeLayer.appendChild(makeSvg("line", {
-                    x1: x1, y1: y1, x2: x2, y2: y2, class: "quasar-map-edge"
+                    x1: x1, y1: y1, x2: x2, y2: y2, class: "benben-map-edge"
                 }));
             });
         });
@@ -160,7 +160,7 @@ let quasar_mapper = (function () {
         visibleRooms.forEach((room) => {
             const [x, y] = screenPoint(room);
             const command = exitCommandTo(room.id);
-            const classes = ["quasar-map-node"];
+            const classes = ["benben-map-node"];
             if (!room.visited) classes.push("unknown");
             if (room.id === currentId) classes.push("current");
             if (command) classes.push("adjacent");
@@ -192,22 +192,22 @@ let quasar_mapper = (function () {
 
     function buildInterface() {
         toggle = $("<button>", {
-            id: "quasar-map-toggle",
+            id: "benben-map-toggle",
             type: "button",
             text: "Map",
-            "aria-controls": "quasar-map-panel"
+            "aria-controls": "benben-map-panel"
         }).appendTo("body")[0];
 
         panel = $(
-            "<aside id='quasar-map-panel' aria-label='Area map'>" +
-                "<div class='quasar-map-heading'>" +
-                    "<div id='quasar-map-room'>No location</div>" +
-                    "<div id='quasar-map-area'>Quasar navigation</div>" +
+            "<aside id='benben-map-panel' aria-label='Area map'>" +
+                "<div class='benben-map-heading'>" +
+                    "<div id='benben-map-room'>No location</div>" +
+                    "<div id='benben-map-area'>Benben navigation</div>" +
                 "</div>" +
-                "<svg id='quasar-map-canvas' viewBox='0 0 380 260' role='img' aria-label='Explored rooms'></svg>" +
+                "<svg id='benben-map-canvas' viewBox='0 0 380 260' role='img' aria-label='Explored rooms'></svg>" +
             "</aside>"
         ).appendTo("body")[0];
-        svg = document.getElementById("quasar-map-canvas");
+        svg = document.getElementById("benben-map-canvas");
 
         toggle.addEventListener("click", () => setVisible(panel.hidden));
         const savedVisibility = localStorage.getItem(STORAGE_VISIBLE);
@@ -222,16 +222,16 @@ let quasar_mapper = (function () {
     }
 
     function init() {
-        localStorage.removeItem("quasar.mapper.rooms.v1");
+        localStorage.removeItem("benben.mapper.rooms.v1");
         rooms = {};
         buildInterface();
         Evennia.emitter.on("room_info", onRoomInfo);
-        Evennia.emitter.on("quasar_map_sync", onMapSync);
-        Evennia.msg("quasar_map_get", [], {});
-        console.log("Quasar mapper initialized.");
+        Evennia.emitter.on("benben_map_sync", onMapSync);
+        Evennia.msg("benben_map_get", [], {});
+        console.log("Benben mapper initialized.");
     }
 
     return {init: init};
 })();
 
-plugin_handler.add("quasar_mapper", quasar_mapper);
+plugin_handler.add("benben_mapper", benben_mapper);

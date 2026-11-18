@@ -97,7 +97,7 @@ export function NightInsects({ sync }: { sync: RoomEffectsSync | null }) {
 
 
 export function RoomEffects({ sync }: { sync: RoomEffectsSync | null }) {
-  const backdrop = visual(sync, "frontier_wayhouse");
+  const backdrop = visual(sync, "night_backdrop");
   const flicker = visual(sync, "electric_flicker");
   const style = ({
     "--room-flicker-period": `${Math.max(800, Number(flicker?.period_ms) || 6400)}ms`,
@@ -107,7 +107,7 @@ export function RoomEffects({ sync }: { sync: RoomEffectsSync | null }) {
 
   return (
     <div
-      className={`room-effects${backdrop ? " room-effects-frontier-wayhouse" : ""}`}
+      className={`room-effects${backdrop ? " room-effects-night-backdrop" : ""}`}
       data-period={sync?.period || "day"}
       style={style}
       aria-hidden="true"

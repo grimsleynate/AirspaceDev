@@ -11,11 +11,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        entryFileNames: "assets/quasar-client.js",
+        entryFileNames: "assets/benben-client.js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: (assetInfo) =>
           assetInfo.names.some((name) => name.endsWith(".css"))
-            ? "assets/quasar-client.css"
+            ? "assets/benben-client.css"
             : "assets/[name]-[hash][extname]",
       },
     },

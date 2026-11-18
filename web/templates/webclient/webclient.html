@@ -7,18 +7,18 @@
     <meta name="theme-color" content="#030711">
     <meta name="description" content="Play {{ game_name }} in your browser.">
     <title>{{ game_name }}</title>
-    <link rel="stylesheet" href="{% static 'webclient/react/assets/quasar-client.css' %}?v=20260823-1">
+    <link rel="stylesheet" href="{% static 'webclient/react/assets/benben-client.css' %}?v=20260823-1">
   </head>
   <body>
-    <noscript>Quasar's web client requires JavaScript.</noscript>
+    <noscript>Benben's web client requires JavaScript.</noscript>
     <div
-      id="quasar-root"
+      id="benben-root"
       data-game-name="{{ game_name|escape }}"
       data-browser-session="{{ browser_sessid|escape }}"
       data-websocket-enabled="{% if websocket_enabled %}true{% else %}false{% endif %}"
       data-websocket-url="{{ websocket_url|default:''|escape }}"
       data-websocket-port="{{ websocket_port|escape }}"
     ></div>
-    <script type="module" src="{% static 'webclient/react/assets/quasar-client.js' %}?v=20260823-1"></script>
+    <script type="module" src="{% static 'webclient/react/assets/benben-client.js' %}?v=20260823-1"></script>
   </body>
 </html>

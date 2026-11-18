@@ -1,4 +1,4 @@
-"""Tests for Quasar's native-client audio protocol."""
+"""Tests for the native-client audio protocol."""
 
 from unittest.mock import Mock, patch
 
@@ -11,10 +11,10 @@ class AudioProtocolTests(EvenniaTest):
     def setUp(self):
         super().setUp()
         self.char1.location = self.room1
-        self.room1.db.audio_scene = "test.station"
-        self.room1.db.audio_music = "music.quasar_drift"
+        self.room1.db.audio_scene = "test.scene"
+        self.room1.db.audio_music = "music.test_theme"
         self.room1.db.audio_ambience = [
-            {"event": "ambience.station_air", "gain": 0.6},
+            {"event": "ambience.test_loop", "gain": 0.6},
             "not a valid event",
         ]
         self.room1.db.audio_fade_ms = 2500
@@ -22,35 +22,33 @@ class AudioProtocolTests(EvenniaTest):
     def test_room_scene_uses_semantic_catalog_ids(self):
         payload = build_audio_scene(self.room1)
 
-        self.assertEqual(payload["scene"], "test.station")
-        self.assertEqual(payload["music"], "music.quasar_drift")
+        self.assertEqual(payload["scene"], "test.scene")
+        self.assertEqual(payload["music"], "music.test_theme")
         self.assertEqual(
             payload["ambience"],
-            [{"event": "ambience.station_air", "gain": 0.6}],
+            [{"event": "ambience.test_loop", "gain": 0.6}],
         )
         self.assertEqual(payload["fade_ms"], 2500)
 
-    def test_existing_tutorial_rooms_receive_deck_scene_before_batch_upgrade(self):
+    def test_room_without_audio_gets_a_per_room_silent_scene(self):
         self.room1.attributes.remove("audio_scene")
         self.room1.attributes.remove("audio_music")
         self.room1.attributes.remove("audio_ambience")
-        self.room1.db.map_area = "Quasar Orientation Annex"
-        self.room1.db.map_z = -1
 
         payload = build_audio_scene(self.room1)
 
-        self.assertEqual(payload["scene"], "tutorial.engineering_deck")
-        self.assertEqual(payload["music"], "music.quasar_drift")
-        self.assertEqual(len(payload["ambience"]), 2)
+        self.assertEqual(payload["scene"], f"room.{self.room1.id}")
+        self.assertIsNone(payload["music"])
+        self.assertEqual(payload["ambience"], [])
 
     def test_duplicate_scene_is_not_resent_to_same_session(self):
-        session = Mock(protocol_flags={"QUASAR_AUDIO": 1})
+        session = Mock(protocol_flags={"BENBEN_AUDIO": 1})
 
         send_audio_scene(self.char1, session=session)
         send_audio_scene(self.char1, session=session)
 
         session.msg.assert_called_once_with(
-            quasar_audio_scene=build_audio_scene(self.room1)
+            benben_audio_scene=build_audio_scene(self.room1)
         )
 
     @patch("world.audio._supported_sessions")
@@ -65,7 +63,7 @@ class AudioProtocolTests(EvenniaTest):
             priority=70,
         )
 
-        session.msg.assert_called_once_with(quasar_audio_play=payload)
+        session.msg.assert_called_once_with(benben_audio_play=payload)
         self.assertEqual(payload["event"], "combat.player_hurt")
         self.assertNotIn("url", payload)
 

@@ -27,17 +27,17 @@ import { ResourceHud } from "./ResourceHud";
 import { NightInsects, RoomEffects } from "./RoomEffects";
 import { commandWithTarget, cycleRoomTarget } from "./targeting";
 import type {
-  AccessibilitySync, AudioSettings, CharacterResourceState, ChargenPreview, ClientConfig, JournalEntry, JournalSync, MapSync,
+  AccessibilitySync, AudioSettings, CharacterResourceState, ClientConfig, MapSync,
   InventoryEntity, MappedRoom, OutputEntry, RoomEntity, RoomEffectsSync, RoomInfo,
 } from "./types";
 import { useEvenniaSocket } from "./useEvenniaSocket";
 import { WorldMap } from "./WorldMap";
 
 const MAX_OUTPUT_ENTRIES = 500;
-const MAP_VISIBLE_KEY = "quasar.react.mapper.visible.v1";
-const FONT_SIZE_KEY = "quasar.react.font-size.v1";
-const AUDIO_ENABLED_KEY = "quasar.react.audio.enabled.v1";
-const AUDIO_SETTINGS_KEY = "quasar.react.audio.settings.v1";
+const MAP_VISIBLE_KEY = "benben.react.mapper.visible.v1";
+const FONT_SIZE_KEY = "benben.react.font-size.v1";
+const AUDIO_ENABLED_KEY = "benben.react.audio.enabled.v1";
+const AUDIO_SETTINGS_KEY = "benben.react.audio.settings.v1";
 
 function loadAudioSettings(): AudioSettings {
   try {
@@ -105,31 +105,6 @@ interface ActionMenuState {
   entity: RoomEntity | InventoryEntity;
 }
 
-function JournalList({ entries, kind, run }: {
-  entries: JournalEntry[]; kind: "quest" | "task"; run: (command: string) => void;
-}) {
-  if (!entries.length) {
-    return <Typography color="text.secondary">You have no active {kind}s.</Typography>;
-  }
-  return (
-    <Stack spacing={1}>
-      {entries.map((entry) => (
-        <Button
-          key={entry.id}
-          className="journal-entry"
-          onClick={() => run(`${kind} ${entry.number}`)}
-        >
-          <Box>
-            <Typography className="journal-title">{entry.number}. {entry.title}</Typography>
-            <Typography variant="body2" color="text.secondary">{entry.summary}</Typography>
-            <Typography variant="caption" className="journal-detail">{entry.detail}</Typography>
-          </Box>
-        </Button>
-      ))}
-    </Stack>
-  );
-}
-
 export default function App({ config }: AppProps) {
   const [entries, setEntries] = useState<OutputEntry[]>([]);
   const [rooms, setRooms] = useState<Record<string, MappedRoom>>({});
@@ -137,15 +112,12 @@ export default function App({ config }: AppProps) {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [actionMenu, setActionMenu] = useState<ActionMenuState | null>(null);
   const [characterResources, setCharacterResources] = useState<CharacterResourceState | null>(null);
-  const [chargenPreview, setChargenPreview] = useState<ChargenPreview | null>(null);
   const [command, setCommand] = useState("");
-  const [hotbarProfile, setHotbarProfile] = useState(() => createHotbarProfile(null));
+  const [hotbarProfile, setHotbarProfile] = useState(() => createHotbarProfile());
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [secretInput, setSecretInput] = useState(false);
   const [leftTab, setLeftTab] = useState(0);
-  const [rightTab, setRightTab] = useState(0);
-  const [journal, setJournal] = useState<JournalSync | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mapVisible, setMapVisible] = useState(
     () => localStorage.getItem(MAP_VISIBLE_KEY) !== "false",
@@ -232,7 +204,6 @@ export default function App({ config }: AppProps) {
         setCurrentRoomId(nextRoomId);
         setRooms(hydrateMap(sync));
       },
-      onJournalSync: (sync: JournalSync) => setJournal(sync.character ? sync : null),
       onAudioScene: (scene: Parameters<AudioManager["setScene"]>[0]) => {
         audioManagerRef.current?.setScene(scene);
       },
@@ -252,9 +223,7 @@ export default function App({ config }: AppProps) {
       },
       onCharacterResources: (resources: CharacterResourceState) => {
         setCharacterResources(resources.character ? resources : null);
-        if (resources.character) setChargenPreview(null);
       },
-      onChargenPreview: (preview: ChargenPreview) => setChargenPreview(preview),
       onProtocol: (_name: string, _data: unknown) => undefined,
     }),
     [],
@@ -269,31 +238,22 @@ export default function App({ config }: AppProps) {
   const equipment = characterResources?.equipment || [];
   const backpack = inventory.find((item) => item.container);
   const characterId = characterResources?.character?.id;
-  const hotbarActions = useMemo(
-    () => buildHotbar(hotbarProfile, characterResources?.combat?.active_skill),
-    [hotbarProfile, characterResources?.combat?.active_skill],
-  );
+  const hotbarActions = useMemo(() => buildHotbar(hotbarProfile), [hotbarProfile]);
 
   useEffect(() => {
     setHotbarProfile(
-      characterId === undefined
-        ? createHotbarProfile(null)
-        : loadHotbarProfile(characterId, characterResources?.combat?.active_skill),
+      characterId === undefined ? createHotbarProfile() : loadHotbarProfile(characterId),
     );
-  }, [characterId, characterResources?.combat?.active_skill?.command]);
+  }, [characterId]);
 
   const rememberCommand = useCallback((value: string) => {
     if (characterId === undefined) return;
     setHotbarProfile((current) => {
-      const next = recordHotbarCommand(
-        current,
-        value,
-        characterResources?.combat?.active_skill,
-      );
+      const next = recordHotbarCommand(current, value);
       if (next !== current) saveHotbarProfile(characterId, next);
       return next;
     });
-  }, [characterId, characterResources?.combat?.active_skill]);
+  }, [characterId]);
 
   const openActionMenu = (
     event: ReactMouseEvent,
@@ -354,13 +314,6 @@ export default function App({ config }: AppProps) {
   useEffect(() => {
     outputEnd.current?.scrollIntoView({ block: "end" });
   }, [entries]);
-
-  useEffect(() => {
-    // The old keys contained one map shared by every character. Since their
-    // ownership is unknowable, discard them rather than migrate bad data.
-    localStorage.removeItem("quasar.react.mapper.rooms.v1");
-    localStorage.removeItem("quasar.react.mapper.rooms.v2");
-  }, []);
 
   useEffect(() => {
     if (!audioWantedRef.current || audioEnabled) return;
@@ -484,46 +437,15 @@ export default function App({ config }: AppProps) {
               <Stack spacing={2}>
                 {characterResources?.character && (
                   <Stack direction="row" spacing={1.5} className="character-identity">
-                    {characterResources.character.portrait_url && (
-                      <Box className="character-headshot">
-                        <Box
-                          component="img"
-                          className={`headshot-image headshot-${characterResources.character.species}`}
-                          src={characterResources.character.portrait_url}
-                          alt={`${characterResources.character.name}'s portrait`}
-                        />
-                      </Box>
-                    )}
                     <Box className="character-identity-copy">
                       <Typography variant="overline" color="text.secondary">Character</Typography>
                       <Typography variant="h6">{characterResources.character.name}</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {[
-                          `Level ${characterResources.progression?.level ?? characterResources.character.level ?? 1}`,
-                          characterResources.character.species,
-                          characterResources.character.gender === "neutral"
-                            ? "Gender-neutral"
-                            : characterResources.character.gender,
-                          characterResources.character.career,
-                          characterResources.character.specialization,
-                        ].filter(Boolean).join(" · ")}
+                        Level {characterResources.progression?.level ?? characterResources.character.level ?? 1}
                       </Typography>
                     </Box>
                   </Stack>
                 )}
-                {!characterResources?.character && chargenPreview?.choices.length ? (
-                  <Box>
-                    <Typography variant="overline" color="text.secondary">Default portraits</Typography>
-                    <Box className="chargen-portrait-grid">
-                      {chargenPreview.choices.map((portrait) => (
-                        <Box className={chargenPreview.portrait?.id === portrait.id ? "chargen-portrait selected" : "chargen-portrait"} key={portrait.id}>
-                          <Box component="img" src={portrait.url} alt={portrait.label} />
-                          <Typography variant="caption">{portrait.label}</Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                ) : null}
                 <Box>
                   <Typography variant="overline" color="text.secondary">Current location</Typography>
                   <Typography variant="h6">{currentRoom?.name || "Not in world"}</Typography>
@@ -572,7 +494,7 @@ export default function App({ config }: AppProps) {
             {leftTab === 2 && (
               <Stack spacing={2}>
                 <Typography variant="body2" color="text.secondary">
-                  Use Quasar's say, tell, and channel commands. Dedicated channel streams can plug into this panel later.
+                  Use the say, tell, and channel commands. Dedicated channel streams can plug into this panel later.
                 </Typography>
                 <Button variant="outlined" onClick={() => setCommand("say ")}>Say something</Button>
                 <Button variant="outlined" onClick={() => run("channels")}>List channels</Button>
@@ -586,7 +508,7 @@ export default function App({ config }: AppProps) {
           <Box className="output" role="log" aria-live="polite" style={{ fontSize }} onClickCapture={runConsoleLink}>
             {entries.length === 0 && (
               <Box className="welcome-card">
-                <Typography variant="h4">Opening a channel to Quasar…</Typography>
+                <Typography variant="h4">Connecting to {config.gameName}…</Typography>
                 <Typography color="text.secondary">The connection screen will appear here.</Typography>
               </Box>
             )}
@@ -642,12 +564,12 @@ export default function App({ config }: AppProps) {
               <WorldMap rooms={rooms} currentId={currentRoomId} onMove={run} />
             </Box>
             <Box className="context-pane">
-              <Tabs value={rightTab} onChange={(_, value) => setRightTab(value)} variant="fullWidth">
-                <Tab label="Room" /><Tab label="Quests" /><Tab label="Tasks" />
+              <Tabs value={0} variant="fullWidth">
+                <Tab label="Room" />
               </Tabs>
               <Divider />
               <Box className="context-content">
-                {rightTab === 0 && (
+                {(
                   currentRoom ? <Stack spacing={1.5}>
                     <Typography variant="subtitle1" className="room-panel-title">{currentRoom.name}</Typography>
                     <Typography className="room-description">{currentRoom.description || "No description is available."}</Typography>
@@ -673,8 +595,6 @@ export default function App({ config }: AppProps) {
                     />
                   </Stack> : <Typography color="text.secondary">No room information available.</Typography>
                 )}
-                {rightTab === 1 && <JournalList entries={journal?.quests || []} kind="quest" run={run} />}
-                {rightTab === 2 && <JournalList entries={journal?.tasks || []} kind="task" run={run} />}
               </Box>
             </Box>
           </Paper>
@@ -724,7 +644,7 @@ export default function App({ config }: AppProps) {
           <Box>
             <Typography variant="h6">Sound</Typography>
             <Typography variant="body2" color="text.secondary">
-              Music, station ambience, and gameplay effects are mixed separately on this device.
+              Music, ambience, and gameplay effects are mixed separately on this device.
             </Typography>
           </Box>
           {(["master", "music", "ambience", "effects"] as const).map((channel) => (

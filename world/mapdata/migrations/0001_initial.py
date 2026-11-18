@@ -22,8 +22,8 @@ class Migration(migrations.Migration):
                 ('room', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='map_visits_as_room', to='objects.objectdb')),
             ],
             options={
-                'db_table': 'quasar_character_map_visit',
-                'constraints': [models.UniqueConstraint(fields=('character', 'room'), name='unique_quasar_character_room_visit')],
+                'db_table': 'mapdata_character_map_visit',
+                'constraints': [models.UniqueConstraint(fields=('character', 'room'), name='unique_character_room_visit')],
             },
         ),
     ]

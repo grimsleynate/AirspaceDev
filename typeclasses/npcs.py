@@ -1,4 +1,4 @@
-"""Friendly non-player characters."""
+"""Friendly and hostile non-player characters."""
 
 from evennia.utils.evmenu import EvMenu
 
@@ -48,7 +48,7 @@ class FriendlyNPC(Object):
         if self.dialogue_module:
             self.at_talk(character, session=session)
         else:
-            character.msg(f'{self.get_display_name(character)} says, "Welcome aboard."')
+            character.msg(f"{self.get_display_name(character)} nods in return.")
 
     def at_talk(self, character, session=None):
         if not self.dialogue_module:
@@ -61,39 +61,6 @@ class FriendlyNPC(Object):
             session=session,
             npc=self,
         )
-
-
-class OrientationGuide(FriendlyNPC):
-    """The guide responsible for the tutorial's first objective."""
-
-    dialogue_module = "world.tutorial_dialogue"
-
-    def accept_tutorial_badge(self, character, badge):
-        progress = dict(character.db.tutorial_progress or {})
-        if progress.get("badge_returned"):
-            character.msg(
-                f'{self.get_display_name(character)} says, '
-                '"This badge is already registered. Keep it—you may need it."'
-            )
-            badge.move_to(character, quiet=True)
-            return
-
-        progress["badge_requested"] = True
-        progress["badge_returned"] = True
-        character.db.tutorial_progress = progress
-        character.location.msg_contents(
-            f"{self.key} scans the access badge and returns it to {character.key}.",
-            exclude=character,
-        )
-        badge.move_to(character, quiet=True)
-        character.msg(
-            "|gOrientation objective complete.|n The guide points you toward the lift lobby. "
-            "Explore both the operations deck above and engineering below; the departure route "
-            "continues through engineering."
-        )
-        from world.audio import emit_audio
-
-        emit_audio(character, "ui.objective_complete", priority=90)
 
 
 class HostileNPC(Object):
@@ -158,64 +125,3 @@ class HostileNPC(Object):
         from world.combat import reset_hostile
 
         reset_hostile(self, announce=announce)
-
-
-class TrainingDrone(HostileNPC):
-    """Low-risk baseline opponent used for the combat proving ground."""
-
-    def at_object_creation(self):
-        super().at_object_creation()
-        self.db.health_max = 50
-        self.db.health_current = 50
-        self.db.damage_min = 5
-        self.db.damage_max = 8
-        self.db.attack_name = "a flashing shock baton"
-        self.db.telegraph_seconds = 2.5
-        self.db.experience_reward = 30
-        self.db.desc = (
-            "A waist-high security drone rolls on a magnetic ball, its shock baton folded "
-            "along one side. A blue training beacon marks it as a controlled threat."
-        )
-
-
-class ScavengerParasite(HostileNPC):
-    """Fast tutorial-grade organism feeding in abandoned compartments."""
-
-    def at_object_creation(self):
-        super().at_object_creation()
-        self.db.health_max = 65
-        self.db.health_current = 65
-        self.db.damage_min = 7
-        self.db.damage_max = 10
-        self.db.evasion = 7
-        self.db.armor = 1
-        self.db.attack_name = "a coiled pounce"
-        self.db.telegraph_seconds = 1.8
-        self.db.attack_interval = 3.2
-        self.db.experience_reward = 45
-        self.db.desc = (
-            "A pallid, many-jointed parasite clings close to the deck. Its feeding tendrils "
-            "draw tight whenever movement crosses its milky eyes."
-        )
-
-
-class ArmoredScavenger(HostileNPC):
-    """Slower armor-heavy comparison target for testing mitigation and skills."""
-
-    def at_object_creation(self):
-        super().at_object_creation()
-        self.db.level = 2
-        self.db.health_max = 90
-        self.db.health_current = 90
-        self.db.damage_min = 9
-        self.db.damage_max = 13
-        self.db.evasion = 1
-        self.db.armor = 12
-        self.db.attack_name = "a crushing forelimb sweep"
-        self.db.telegraph_seconds = 3.0
-        self.db.attack_interval = 4.0
-        self.db.experience_reward = 70
-        self.db.desc = (
-            "A mature scavenger drags a carapace thickened with fused insulation and metal "
-            "scrap. One swollen forelimb rises whenever it senses a nearby pulse."
-        )

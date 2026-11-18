@@ -5,9 +5,9 @@ import { parseEnvelope } from "./useEvenniaSocket";
 function handlers() {
   return {
     onHtmlText: vi.fn(), onHtmlPrompt: vi.fn(),
-    onRoomInfo: vi.fn(), onMapSync: vi.fn(), onJournalSync: vi.fn(),
+    onRoomInfo: vi.fn(), onMapSync: vi.fn(),
     onAudioScene: vi.fn(), onAudioPlay: vi.fn(), onAudioStop: vi.fn(), onRoomEffects: vi.fn(), onAccessibility: vi.fn(),
-    onCharacterResources: vi.fn(), onChargenPreview: vi.fn(), onProtocol: vi.fn(),
+    onCharacterResources: vi.fn(), onProtocol: vi.fn(),
   };
 }
 
@@ -15,9 +15,9 @@ describe("Evennia websocket envelopes", () => {
   it("routes native Evennia HTML text packets", () => {
     const target = handlers();
 
-    parseEnvelope(JSON.stringify(["text", ["<span>Welcome to Quasar</span>"], {}]), target);
+    parseEnvelope(JSON.stringify(["text", ["<span>Welcome</span>"], {}]), target);
 
-    expect(target.onHtmlText).toHaveBeenCalledWith("<span>Welcome to Quasar</span>");
+    expect(target.onHtmlText).toHaveBeenCalledWith("<span>Welcome</span>");
   });
 
   it("routes native structured output names", () => {
@@ -25,7 +25,7 @@ describe("Evennia websocket envelopes", () => {
     const payload = { revision: 5, character: { id: 7, name: "Pilot" } };
 
     parseEnvelope(JSON.stringify([
-      "quasar_character_resources", [], { ...payload, options: {} },
+      "benben_character_resources", [], { ...payload, options: {} },
     ]), target);
 
     expect(target.onCharacterResources).toHaveBeenCalledWith(payload);
@@ -33,16 +33,16 @@ describe("Evennia websocket envelopes", () => {
 
   it("routes native map snapshots carried in Evennia's keyword payload", () => {
     const target = handlers();
-    const payload = { revision: 2, current: 9, rooms: [{ id: 9, name: "Airlock" }] };
+    const payload = { revision: 2, current: 9, rooms: [{ id: 9, name: "Hall" }] };
 
-    parseEnvelope(JSON.stringify(["quasar_map_sync", [], { ...payload, options: {} }]), target);
+    parseEnvelope(JSON.stringify(["benben_map_sync", [], { ...payload, options: {} }]), target);
 
     expect(target.onMapSync).toHaveBeenCalledWith(payload);
   });
 
   it("routes native room info", () => {
     const target = handlers();
-    const room = { num: 3, name: "Docking Ring" };
+    const room = { num: 3, name: "Courtyard" };
 
     parseEnvelope(JSON.stringify(["room_info", [], { ...room, options: {} }]), target);
 
@@ -62,7 +62,7 @@ describe("Evennia websocket envelopes", () => {
     const payload = { revision: 1, room: 3, period: "night", effects: [] };
 
     parseEnvelope(JSON.stringify([
-      "quasar_room_effects_sync", [], { ...payload, options: {} },
+      "benben_room_effects_sync", [], { ...payload, options: {} },
     ]), target);
 
     expect(target.onRoomEffects).toHaveBeenCalledWith(payload);
@@ -73,7 +73,7 @@ describe("Evennia websocket envelopes", () => {
     const payload = { revision: 1, screenreader: true, color_mode: "off", room_effects: false, ascii_maps: false };
 
     parseEnvelope(JSON.stringify([
-      "quasar_accessibility_sync", [], { ...payload, options: {} },
+      "benben_accessibility_sync", [], { ...payload, options: {} },
     ]), target);
 
     expect(target.onAccessibility).toHaveBeenCalledWith(payload);

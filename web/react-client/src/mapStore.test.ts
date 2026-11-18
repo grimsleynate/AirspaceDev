@@ -4,7 +4,7 @@ import { hydrateMap, updateMap } from "./mapStore";
 describe("updateMap", () => {
   it("stores coordinates and discovers exit targets", () => {
     const result = updateMap({}, null, {
-      num: 10, name: "Orientation Hall", area: "Tutorial", coord: { x: 0, y: 0, z: 0 },
+      num: 10, name: "Orientation Hall", area: "Test Area", coord: { x: 0, y: 0, z: 0 },
       exits: { n: 11, ne: 12, in: 13 },
     });
     expect(result.currentId).toBe("10");
@@ -22,14 +22,14 @@ describe("updateMap", () => {
 
   it("replaces a placeholder's exits when that room is visited", () => {
     const arrival = updateMap({}, null, {
-      num: 1, name: "Arrival", area: "Station", coord: { x: 0, y: 0, z: 0 }, exits: { e: 2 },
+      num: 1, name: "Arrival", area: "Test Area", coord: { x: 0, y: 0, z: 0 }, exits: { e: 2 },
     });
     const lock = updateMap(arrival.rooms, "1", {
-      num: 2, name: "Lock", area: "Station", coord: { x: 1, y: 0, z: 0 }, exits: { w: 1, e: 3 },
+      num: 2, name: "Lock", area: "Test Area", coord: { x: 1, y: 0, z: 0 }, exits: { w: 1, e: 3 },
     });
 
     expect(lock.rooms["2"].exits).toEqual({ w: "1", e: "3" });
-    expect(lock.rooms["3"]).toMatchObject({ x: 2, y: 0, area: "Station", visited: false });
+    expect(lock.rooms["3"]).toMatchObject({ x: 2, y: 0, area: "Test Area", visited: false });
   });
 
   it("repairs stale inferred coordinates for an unvisited adjacent room", () => {
@@ -40,10 +40,10 @@ describe("updateMap", () => {
       },
     };
     const result = updateMap(stale, null, {
-      num: 1, name: "Hall", area: "Station", coord: { x: 0, y: 0, z: 0 }, exits: { sw: 2 },
+      num: 1, name: "Hall", area: "Test Area", coord: { x: 0, y: 0, z: 0 }, exits: { sw: 2 },
     });
 
-    expect(result.rooms["2"]).toMatchObject({ x: -1, y: -1, area: "Station", visited: false });
+    expect(result.rooms["2"]).toMatchObject({ x: -1, y: -1, area: "Test Area", visited: false });
   });
 
   it("hydrates an authoritative character snapshot without browser storage", () => {
@@ -51,14 +51,14 @@ describe("updateMap", () => {
       revision: 1,
       character: { id: 77, name: "Vike" },
       current: 2,
-      area: "Station",
+      area: "Test Area",
       rooms: [
-        { num: 1, name: "Dock", area: "Station", coord: { x: 0, y: 0, z: 0 }, exits: { e: 2 } },
-        { num: 2, name: "Lock", area: "Station", coord: { x: 1, y: 0, z: 0 }, exits: { w: 1 } },
+        { num: 1, name: "Gate", area: "Test Area", coord: { x: 0, y: 0, z: 0 }, exits: { e: 2 } },
+        { num: 2, name: "Lock", area: "Test Area", coord: { x: 1, y: 0, z: 0 }, exits: { w: 1 } },
       ],
     });
 
-    expect(rooms["1"]).toMatchObject({ name: "Dock", visited: true });
+    expect(rooms["1"]).toMatchObject({ name: "Gate", visited: true });
     expect(rooms["2"]).toMatchObject({ name: "Lock", visited: true });
     expect(localStorage.length).toBe(0);
   });

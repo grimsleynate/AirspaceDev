@@ -85,14 +85,14 @@ def apply_accessibility_preferences(account, session=None, character=None):
     ):
         set_accessibility_preferences(account, screenreader=True)
     preferences = get_accessibility_preferences(account)
-    capabilities = getattr(session, "_quasar_color_capabilities", None) if session else None
+    capabilities = getattr(session, "_color_capabilities", None) if session else None
     if session and not isinstance(capabilities, dict):
         capabilities = {
             "ANSI": bool(session_flags.get("ANSI", True)),
             "XTERM256": bool(session_flags.get("XTERM256", False)),
             "TRUECOLOR": bool(session_flags.get("TRUECOLOR", False)),
         }
-        session._quasar_color_capabilities = capabilities
+        session._color_capabilities = capabilities
     protocol = {
         "SCREENREADER": preferences["screenreader"],
         **_protocol_color_flags(preferences["color_mode"], capabilities),
@@ -116,8 +116,8 @@ def apply_accessibility_preferences(account, session=None, character=None):
         character.db.ascii_map_enabled = preferences["ascii_maps"]
     if session:
         session.protocol_flags.update(protocol)
-        if session.protocol_flags.get("QUASAR_ACCESSIBILITY"):
-            session.msg(quasar_accessibility_sync=accessibility_payload(account))
+        if session.protocol_flags.get("BENBEN_ACCESSIBILITY"):
+            session.msg(benben_accessibility_sync=accessibility_payload(account))
         handler = getattr(session, "sessionhandler", None)
         if handler and hasattr(handler, "session_portal_sync"):
             try:
@@ -145,17 +145,17 @@ def apply_to_account_sessions(account):
             from world.audio import send_audio_scene
             from world.room_effects import send_room_effects
 
-            if flags.get("QUASAR_AUDIO"):
+            if flags.get("BENBEN_AUDIO"):
                 send_audio_scene(character, session=session, force=True)
-            if flags.get("QUASAR_ROOM_EFFECTS"):
+            if flags.get("BENBEN_ROOM_EFFECTS"):
                 send_room_effects(character, session=session, force=True)
         else:
             from world.audio import stop_audio
             from world.room_effects import clear_room_effects
 
-            if flags.get("QUASAR_AUDIO"):
+            if flags.get("BENBEN_AUDIO"):
                 stop_audio(character, session=session, all=True, fade_ms=150)
-            if flags.get("QUASAR_ROOM_EFFECTS"):
+            if flags.get("BENBEN_ROOM_EFFECTS"):
                 clear_room_effects(session)
     return preferences
 

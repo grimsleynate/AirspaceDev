@@ -1,4 +1,4 @@
-"""Quasar account-level character management commands."""
+"""Benben account-level character management commands."""
 
 from time import perf_counter
 

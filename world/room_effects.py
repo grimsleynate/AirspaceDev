@@ -2,7 +2,7 @@
 
 Builders assign ``room.db.room_effect_ids``.  Database values never contain
 CSS, media paths, or executable behavior: this registry resolves known ids
-into a small wire format understood by Quasar's native client.
+into a small wire format understood by the native web client.
 """
 
 from collections.abc import Mapping
@@ -11,31 +11,8 @@ from collections.abc import Mapping
 ROOM_EFFECTS_PROTOCOL_REVISION = 1
 
 
-ROOM_EFFECTS = {
-    "wayhouse.frontier_night": {
-        "periods": {"night"},
-        "visual": {"preset": "frontier_wayhouse", "intensity": 0.82},
-    },
-    "wayhouse.low_wind": {
-        "periods": {"night"},
-        "audio": [{"event": "ambience.wayhouse_wind", "gain": 0.28}],
-    },
-    "wayhouse.electric_lamps": {
-        "visual": {
-            "preset": "electric_flicker",
-            "intensity": 0.38,
-            # Matches the authored twelve-second hum loop so ballast dropouts
-            # and visible dimming share one cadence after scene entry.
-            "period_ms": 12_000,
-        },
-        "audio": [{"event": "ambience.wayhouse_lamps", "gain": 0.32}],
-    },
-    "wayhouse.night_insects": {
-        "periods": {"night"},
-        "visual": {"preset": "night_insects", "intensity": 0.62},
-        "audio": [{"event": "ambience.wayhouse_insects", "gain": 0.24}],
-    },
-}
+# Effect id -> {"periods": {...}, "visual": {...}, "audio": [...]}.
+ROOM_EFFECTS = {}
 
 
 def _room_period(room):
@@ -101,7 +78,7 @@ def _supported_sessions(character):
     return [
         session
         for session in character.sessions.all()
-        if getattr(session, "protocol_flags", {}).get("QUASAR_ROOM_EFFECTS")
+        if getattr(session, "protocol_flags", {}).get("BENBEN_ROOM_EFFECTS")
     ]
 
 
@@ -115,10 +92,10 @@ def send_room_effects(character, session=None, force=False):
         from world.accessibility import room_media_enabled
 
         target_payload = payload if room_media_enabled(character, target) else cleared
-        if not force and target.ndb.quasar_room_effects_scene == target_payload:
+        if not force and target.ndb.benben_room_effects_scene == target_payload:
             continue
-        target.ndb.quasar_room_effects_scene = target_payload
-        target.msg(quasar_room_effects_sync=target_payload)
+        target.ndb.benben_room_effects_scene = target_payload
+        target.msg(benben_room_effects_sync=target_payload)
     return payload
 
 
@@ -126,6 +103,6 @@ def clear_room_effects(session):
     """Clear visual ambience when a session leaves character play."""
 
     payload = build_room_effects(None)
-    session.ndb.quasar_room_effects_scene = None
-    session.msg(quasar_room_effects_sync=payload)
+    session.ndb.benben_room_effects_scene = None
+    session.msg(benben_room_effects_sync=payload)
     return payload

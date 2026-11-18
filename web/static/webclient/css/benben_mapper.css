@@ -1,13 +1,13 @@
 :root {
-    --quasar-map-bg: rgba(5, 11, 25, 0.96);
-    --quasar-map-edge: #425673;
-    --quasar-map-node: #162640;
-    --quasar-map-current: #52e7ff;
-    --quasar-map-text: #e6f4ff;
-    --quasar-map-muted: #8ea6bd;
+    --benben-map-bg: rgba(5, 11, 25, 0.96);
+    --benben-map-edge: #425673;
+    --benben-map-node: #162640;
+    --benben-map-current: #52e7ff;
+    --benben-map-text: #e6f4ff;
+    --benben-map-muted: #8ea6bd;
 }
 
-#quasar-map-toggle {
+#benben-map-toggle {
     position: fixed;
     z-index: 1002;
     top: 9px;
@@ -15,7 +15,7 @@
     border: 1px solid #3e617e;
     border-radius: 4px;
     padding: 5px 11px;
-    color: var(--quasar-map-text);
+    color: var(--benben-map-text);
     background: #102039;
     cursor: pointer;
     font: 600 12px/1.2 sans-serif;
@@ -23,13 +23,13 @@
     text-transform: uppercase;
 }
 
-#quasar-map-toggle:hover,
-#quasar-map-toggle[aria-expanded="true"] {
-    border-color: var(--quasar-map-current);
+#benben-map-toggle:hover,
+#benben-map-toggle[aria-expanded="true"] {
+    border-color: var(--benben-map-current);
     color: white;
 }
 
-#quasar-map-panel {
+#benben-map-panel {
     position: fixed;
     z-index: 1001;
     top: 45px;
@@ -39,22 +39,22 @@
     overflow: hidden;
     border: 1px solid #324c69;
     border-radius: 7px;
-    color: var(--quasar-map-text);
-    background: var(--quasar-map-bg);
+    color: var(--benben-map-text);
+    background: var(--benben-map-bg);
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(5px);
 }
 
-#quasar-map-panel[hidden] {
+#benben-map-panel[hidden] {
     display: none;
 }
 
-.quasar-map-heading {
+.benben-map-heading {
     padding: 10px 13px 8px;
     border-bottom: 1px solid #243b55;
 }
 
-#quasar-map-room {
+#benben-map-room {
     overflow: hidden;
     color: white;
     font: 600 14px/1.25 sans-serif;
@@ -62,10 +62,10 @@
     white-space: nowrap;
 }
 
-#quasar-map-area {
+#benben-map-area {
     margin-top: 2px;
     overflow: hidden;
-    color: var(--quasar-map-muted);
+    color: var(--benben-map-muted);
     font: 11px/1.2 sans-serif;
     letter-spacing: 0.04em;
     text-overflow: ellipsis;
@@ -73,63 +73,63 @@
     white-space: nowrap;
 }
 
-#quasar-map-canvas {
+#benben-map-canvas {
     display: block;
     width: 100%;
     height: calc(100% - 52px);
 }
 
-.quasar-map-edge {
-    stroke: var(--quasar-map-edge);
+.benben-map-edge {
+    stroke: var(--benben-map-edge);
     stroke-width: 3;
 }
 
-.quasar-map-node {
+.benben-map-node {
     cursor: default;
 }
 
-.quasar-map-node.adjacent {
+.benben-map-node.adjacent {
     cursor: pointer;
 }
 
-.quasar-map-node rect {
-    fill: var(--quasar-map-node);
+.benben-map-node rect {
+    fill: var(--benben-map-node);
     stroke: #59708d;
     stroke-width: 2;
 }
 
-.quasar-map-node.unknown rect {
+.benben-map-node.unknown rect {
     fill: #0c1728;
     stroke-dasharray: 4 3;
     opacity: 0.82;
 }
 
-.quasar-map-node.current rect {
+.benben-map-node.current rect {
     fill: #16394f;
-    stroke: var(--quasar-map-current);
+    stroke: var(--benben-map-current);
     stroke-width: 3;
     filter: drop-shadow(0 0 5px rgba(82, 231, 255, 0.6));
 }
 
-.quasar-map-node.adjacent:hover rect {
+.benben-map-node.adjacent:hover rect {
     stroke: #ffffff;
 }
 
-.quasar-map-node text {
+.benben-map-node text {
     pointer-events: none;
-    fill: var(--quasar-map-text);
+    fill: var(--benben-map-text);
     font: 10px sans-serif;
     text-anchor: middle;
 }
 
-.quasar-map-empty {
-    fill: var(--quasar-map-muted);
+.benben-map-empty {
+    fill: var(--benben-map-muted);
     font: 13px sans-serif;
     text-anchor: middle;
 }
 
 @media (max-width: 600px) {
-    #quasar-map-panel {
+    #benben-map-panel {
         height: min(285px, calc(100vh - 100px));
     }
 }

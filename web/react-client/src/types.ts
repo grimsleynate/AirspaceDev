@@ -35,10 +35,6 @@ export interface RoomEntity {
   id: string | number;
   name: string;
   hostile?: boolean;
-  readable?: boolean;
-  writable?: boolean;
-  editable?: boolean;
-  journal?: boolean;
 }
 
 export interface InventoryEntity {
@@ -50,10 +46,6 @@ export interface InventoryEntity {
   container: boolean;
   capacity: number;
   contents_count: number;
-  readable?: boolean;
-  writable?: boolean;
-  editable?: boolean;
-  journal?: boolean;
 }
 
 export interface MapSync {
@@ -78,22 +70,6 @@ export interface MappedRoom {
   players: RoomEntity[];
   npcs: RoomEntity[];
   items: RoomEntity[];
-}
-
-export interface JournalEntry {
-  id: string;
-  number: number;
-  title: string;
-  summary: string;
-  detail: string;
-  status: string;
-}
-
-export interface JournalSync {
-  revision: number;
-  character: { id: string | number; name: string } | null;
-  quests: JournalEntry[];
-  tasks: JournalEntry[];
 }
 
 export interface AudioSceneLayer {
@@ -127,7 +103,7 @@ export interface AudioStopEvent {
 }
 
 export interface RoomVisualEffect {
-  preset: "frontier_wayhouse" | "electric_flicker" | "night_insects";
+  preset: "night_backdrop" | "electric_flicker" | "night_insects";
   intensity?: number;
   period_ms?: number;
 }
@@ -159,23 +135,9 @@ export interface AudioSettings {
   effects: number;
 }
 
-export type PrimaryResourceKind = "tech" | "acuity" | "skill";
-
 export interface ResourceValue {
   current: number;
   max: number;
-}
-
-export interface PrimaryResource extends ResourceValue {
-  kind: PrimaryResourceKind;
-  label: string;
-  short_label: string;
-}
-
-export interface OxygenResource extends ResourceValue {
-  source: string | null;
-  active: boolean;
-  required: boolean;
 }
 
 export interface CharacterResourceState {
@@ -183,24 +145,9 @@ export interface CharacterResourceState {
   character: {
     id: string | number;
     name: string;
-    species: string;
-    gender?: string | null;
-    pre_synth_gender?: string | null;
-    portrait_id?: string;
-    portrait_url?: string;
-    locomotion_chassis?: "wheel" | "bipedal";
-    career: string;
-    specialization: string;
     level?: number;
   } | null;
   health: ResourceValue | null;
-  primary: PrimaryResource | null;
-  oxygen: OxygenResource | null;
-  environment: {
-    atmosphere: string;
-    breathable: boolean;
-    gravity: boolean;
-  } | null;
   progression?: {
     level: number;
     experience: number;
@@ -220,38 +167,16 @@ export interface CharacterResourceState {
     } | null;
     weapon: string;
     weapon_family: string;
-    attack_category?: "unarmed" | "ranged_energy" | "melee_energy";
+    attack_category?: "unarmed" | "weapon";
     damage: { min: number; max: number };
     armor: number;
     accuracy: number;
     evasion: number;
     crit_chance: number;
     recovery_remaining: number;
-    active_skill?: {
-      key: string;
-      name: string;
-      command: string;
-    } | null;
   } | null;
   inventory?: InventoryEntity[];
   equipment?: InventoryEntity[];
-}
-
-export interface PortraitChoice {
-  id: string;
-  species: string;
-  gender: string;
-  label: string;
-  url: string;
-}
-
-export interface ChargenPreview {
-  step: string;
-  species: string | null;
-  gender: string | null;
-  pre_synth_gender: string | null;
-  portrait: PortraitChoice | null;
-  choices: PortraitChoice[];
 }
 
 export interface OutputEntry {

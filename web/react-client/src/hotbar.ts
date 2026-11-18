@@ -18,7 +18,7 @@ export interface HotbarProfile {
   lastChanged: number;
 }
 
-const STORAGE_PREFIX = "quasar.react.hotbar.v2";
+const STORAGE_PREFIX = "benben.react.hotbar.v2";
 const PINNED_COMMANDS = ["attack", "look", "consider"];
 const INITIAL_LOCK_COMMANDS = 20;
 const REVIEW_INTERVAL_COMMANDS = 12;
@@ -70,38 +70,27 @@ export function recordCommandUsage(
     .slice(0, 60);
 }
 
-function actionLabel(command: string, skillName?: string): string {
-  if (skillName && command.startsWith("cast ")) return skillName;
+function actionLabel(command: string): string {
   return command.replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function initialAdaptiveCommands(activeSkill?: { command: string } | null): string[] {
-  return [
-    activeSkill?.command || "skills", "inventory", "equipment", "greet", "talk", "map", "vitals",
-  ];
+function initialAdaptiveCommands(): string[] {
+  return ["sheet", "inventory", "equipment", "greet", "talk", "map", "vitals"];
 }
 
-export function createHotbarProfile(
-  activeSkill?: { command: string } | null,
-): HotbarProfile {
+export function createHotbarProfile(): HotbarProfile {
   return {
     usage: [],
-    adaptiveCommands: initialAdaptiveCommands(activeSkill),
+    adaptiveCommands: initialAdaptiveCommands(),
     totalRecorded: 0,
     commandsSinceReview: 0,
     lastChanged: 0,
   };
 }
 
-function normalizedAdaptiveCommands(
-  profile: HotbarProfile,
-  activeSkill?: { command: string } | null,
-): string[] {
-  const preferred = initialAdaptiveCommands(activeSkill);
-  const stored = profile.adaptiveCommands.map((command) => (
-    command === "skills" && activeSkill?.command ? activeSkill.command : command
-  ));
-  return [...new Set([...stored, ...preferred])]
+function normalizedAdaptiveCommands(profile: HotbarProfile): string[] {
+  const preferred = initialAdaptiveCommands();
+  return [...new Set([...profile.adaptiveCommands, ...preferred])]
     .filter((command) => !PINNED_COMMANDS.includes(command))
     .slice(0, 7);
 }
@@ -115,13 +104,12 @@ function usageScore(entry: CommandUsage | undefined, now: number): number {
 export function recordHotbarCommand(
   profile: HotbarProfile,
   raw: string,
-  activeSkill?: { name: string; command: string } | null,
   now = Date.now(),
 ): HotbarProfile {
   const command = normalizeLearnableCommand(raw);
   if (!command) return profile;
   const usage = recordCommandUsage(profile.usage, command, now);
-  const adaptiveCommands = normalizedAdaptiveCommands(profile, activeSkill);
+  const adaptiveCommands = normalizedAdaptiveCommands(profile);
   const next = {
     ...profile,
     usage,
@@ -166,35 +154,31 @@ export function recordHotbarCommand(
 
 export function buildHotbar(
   profile: HotbarProfile,
-  activeSkill?: { name: string; command: string } | null,
   now = Date.now(),
 ): HotbarAction[] {
-  const commands = [...PINNED_COMMANDS, ...normalizedAdaptiveCommands(profile, activeSkill)];
+  const commands = [...PINNED_COMMANDS, ...normalizedAdaptiveCommands(profile)];
   return commands.map((command) => ({
     command,
-    label: actionLabel(command, activeSkill?.command === command ? activeSkill.name : undefined),
+    label: actionLabel(command),
     score: usageScore(profile.usage.find((entry) => entry.command === command), now),
   }));
 }
 
-export function loadHotbarProfile(
-  characterId: string | number,
-  activeSkill?: { command: string } | null,
-): HotbarProfile {
+export function loadHotbarProfile(characterId: string | number): HotbarProfile {
   try {
     const value = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}.${characterId}`) || "null");
-    if (!value || Array.isArray(value)) return createHotbarProfile(activeSkill);
+    if (!value || Array.isArray(value)) return createHotbarProfile();
     return {
       usage: Array.isArray(value.usage) ? value.usage : [],
       adaptiveCommands: Array.isArray(value.adaptiveCommands)
         ? value.adaptiveCommands
-        : initialAdaptiveCommands(activeSkill),
+        : initialAdaptiveCommands(),
       totalRecorded: Number(value.totalRecorded) || 0,
       commandsSinceReview: Number(value.commandsSinceReview) || 0,
       lastChanged: Number(value.lastChanged) || 0,
     };
   } catch {
-    return createHotbarProfile(activeSkill);
+    return createHotbarProfile();
   }
 }
 

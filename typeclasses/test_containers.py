@@ -1,4 +1,4 @@
-"""Integration coverage for Quasar inventory and the Evennia containers contrib."""
+"""Integration coverage for inventory and the Evennia containers contrib."""
 
 from unittest.mock import patch
 
@@ -9,13 +9,9 @@ from evennia.utils.test_resources import EvenniaCommandTest, EvenniaTest
 
 from typeclasses.items import (
     CONTAINER_SIZE_CONFIG,
-    PHYSICAL_COMPONENT_MIGRATION_CONFIG,
     BasicBackpack,
-    LaserRifle,
+    EquipableItem,
     PortableItem,
-    UtilityPressureSuit,
-    ensure_starter_backpack,
-    migrate_legacy_physical_components,
     set_container_sizes_enabled,
 )
 from typeclasses.components.physical import dimensions_fit, normalized_dimensions
@@ -24,8 +20,14 @@ from typeclasses.components.physical import dimensions_fit, normalized_dimension
 class ContainerIntegrationTests(EvenniaTest):
     def tearDown(self):
         ServerConfig.objects.conf(CONTAINER_SIZE_CONFIG, delete=True)
-        ServerConfig.objects.conf(PHYSICAL_COMPONENT_MIGRATION_CONFIG, delete=True)
         super().tearDown()
+
+    def _long_item(self):
+        """A rigid item longer than the default backpack's interior."""
+
+        item = create_object(PortableItem, key="long item", location=self.char1)
+        item.dimensions_cm = (88.0, 25.0, 7.0)
+        return item
 
     def test_character_direct_inventory_is_limited_to_eight(self):
         for number in range(8):
@@ -36,9 +38,7 @@ class ContainerIntegrationTests(EvenniaTest):
         self.assertEqual(extra.location, self.room1)
 
     def test_equipped_items_do_not_consume_direct_inventory_slots(self):
-        suit = create_object(
-            UtilityPressureSuit, key="pressure suit", location=self.char1
-        )
+        suit = create_object(EquipableItem, key="test armor", location=self.char1)
         self.assertTrue(suit.equip_to(self.char1, quiet=True))
         for number in range(7):
             create_object(PortableItem, key=f"item {number}", location=self.char1)
@@ -51,9 +51,7 @@ class ContainerIntegrationTests(EvenniaTest):
         self.assertEqual(len(self.char1.inventory_items()), 8)
 
     def test_equipped_item_cannot_be_unequipped_into_a_full_inventory(self):
-        suit = create_object(
-            UtilityPressureSuit, key="pressure suit", location=self.char1
-        )
+        suit = create_object(EquipableItem, key="test armor", location=self.char1)
         self.assertTrue(suit.equip_to(self.char1, quiet=True))
         for number in range(8):
             create_object(PortableItem, key=f"item {number}", location=self.char1)
@@ -71,10 +69,9 @@ class ContainerIntegrationTests(EvenniaTest):
         send_resources.assert_called_with(self.char1, force=True)
         send_room_info.assert_called_once_with()
 
-    def test_starter_backpack_is_idempotent_and_holds_twenty_items(self):
-        backpack = ensure_starter_backpack(self.char1)
+    def test_backpack_holds_twenty_items(self):
+        backpack = create_object(BasicBackpack, key="backpack", location=self.char1)
 
-        self.assertIs(backpack, ensure_starter_backpack(self.char1))
         self.assertTrue(backpack.components.has("physical_dimensions"))
         self.assertTrue(backpack.components.has("container_storage"))
         self.assertEqual(backpack.dimensions_cm, (50.0, 32.0, 20.0))
@@ -86,19 +83,18 @@ class ContainerIntegrationTests(EvenniaTest):
         overflow = create_object(PortableItem, key="overflow", location=self.char1)
         self.assertFalse(backpack.at_pre_put_in(self.char1, overflow))
 
-    def test_rifle_does_not_fit_standard_backpack_when_sizes_are_on(self):
+    def test_oversized_item_does_not_fit_backpack_when_sizes_are_on(self):
         set_container_sizes_enabled(True)
         backpack = create_object(BasicBackpack, key="backpack", location=self.char1)
-        rifle = create_object(LaserRifle, key="laser rifle", location=self.char1)
+        item = self._long_item()
 
-        self.assertTrue(rifle.components.has("physical_dimensions"))
-        self.assertEqual(rifle.dimensions_cm, (88.0, 25.0, 7.0))
-        self.assertFalse(backpack.at_pre_put_in(self.char1, rifle))
+        self.assertTrue(item.components.has("physical_dimensions"))
+        self.assertFalse(backpack.at_pre_put_in(self.char1, item))
 
     def test_dimension_components_are_searchable_capabilities(self):
-        rifle = create_object(LaserRifle, key="laser rifle", location=self.char1)
+        item = create_object(PortableItem, key="widget", location=self.char1)
 
-        self.assertTrue(rifle.tags.has("physical_dimensions", category="components"))
+        self.assertTrue(item.tags.has("physical_dimensions", category="components"))
 
     def test_legacy_dimensions_migrate_lazily_to_component_storage(self):
         item = create_object(PortableItem, key="legacy item", location=self.char1)
@@ -122,37 +118,15 @@ class ContainerIntegrationTests(EvenniaTest):
         self.assertTrue(backpack.components.has("physical_dimensions"))
         self.assertTrue(backpack.components.has("container_storage"))
 
-    def test_startup_migration_tags_legacy_hosts_and_is_idempotent(self):
-        item = create_object(PortableItem, key="legacy item", location=self.char1)
-        backpack = create_object(BasicBackpack, key="legacy pack", location=self.char1)
-        item.components.remove_by_name("physical_dimensions")
-        backpack.components.remove_by_name("physical_dimensions")
-        backpack.components.remove_by_name("container_storage")
-        item.attributes.add("dimensions_cm", (15.0, 10.0, 5.0))
-        backpack.attributes.add("dimensions_cm", (50.0, 32.0, 20.0))
-        backpack.attributes.add("interior_dimensions_cm", (47.0, 29.0, 17.0))
-        backpack.attributes.add("capacity", 20)
-
-        migrated = migrate_legacy_physical_components()
-
-        self.assertGreaterEqual(migrated["physical_dimensions"], 2)
-        self.assertEqual(migrated["container_storage"], 1)
-        self.assertTrue(item.tags.has("physical_dimensions", category="components"))
-        self.assertTrue(backpack.tags.has("container_storage", category="components"))
-        self.assertEqual(
-            migrate_legacy_physical_components(),
-            {"physical_dimensions": 0, "container_storage": 0},
-        )
-
-    def test_size_toggle_allows_rifle_while_preserving_count_capacity(self):
+    def test_size_toggle_allows_oversized_item_while_preserving_count_capacity(self):
         set_container_sizes_enabled(False)
         backpack = create_object(BasicBackpack, key="backpack", location=self.char1)
-        rifle = create_object(LaserRifle, key="laser rifle", location=self.char1)
+        item = self._long_item()
 
-        self.assertTrue(backpack.at_pre_put_in(self.char1, rifle))
+        self.assertTrue(backpack.at_pre_put_in(self.char1, item))
         for number in range(20):
             create_object(PortableItem, key=f"cargo {number}", location=backpack)
-        self.assertFalse(backpack.at_pre_put_in(self.char1, rifle))
+        self.assertFalse(backpack.at_pre_put_in(self.char1, item))
 
 
 class ContainerCommandIntegrationTests(EvenniaCommandTest):

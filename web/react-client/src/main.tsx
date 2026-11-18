@@ -6,11 +6,11 @@ import { MapperPreview } from "./MapperPreview";
 import type { ClientConfig } from "./types";
 import "./styles.css";
 
-const root = document.getElementById("quasar-root");
-if (!root) throw new Error("Quasar client root was not found.");
+const root = document.getElementById("benben-root");
+if (!root) throw new Error("Client root was not found.");
 
 const config: ClientConfig = {
-  gameName: root.dataset.gameName || "Quasar",
+  gameName: root.dataset.gameName || "Benben",
   browserSession: root.dataset.browserSession || "",
   websocketEnabled: root.dataset.websocketEnabled === "true",
   websocketUrl: root.dataset.websocketUrl || "",

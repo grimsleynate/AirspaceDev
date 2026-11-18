@@ -1,4 +1,4 @@
-"""Tests for Quasar's player-facing commands."""
+"""Tests for player-facing commands."""
 
 from evennia import create_object
 from evennia.server.models import ServerConfig
@@ -11,19 +11,21 @@ from .player_commands import (
     CmdEquipment,
     CmdGreet,
     CmdInventory,
-    CmdInnate,
     CmdMap,
     CmdNumpadLook,
     CmdNumpadNorth,
-    CmdOxygen,
-    CmdSkill,
     CmdSoundTest,
     CmdVitals,
 )
 from typeclasses.items import CONTAINER_SIZE_CONFIG
-from typeclasses.items import PortableItem, UtilityPressureSuit
-from typeclasses.npcs import FriendlyNPC, OrientationGuide
-from world.character_options import apply_species
+from typeclasses.items import EquipableItem, PortableItem
+from typeclasses.npcs import FriendlyNPC
+
+
+class DialogueNPC(FriendlyNPC):
+    """Test fixture: a friendly NPC that hosts an EvMenu dialogue."""
+
+    dialogue_module = "commands.test_player_commands"
 
 
 class ContainerSizeAdminCommandTests(EvenniaCommandTest):
@@ -50,9 +52,7 @@ class ContainerSizeAdminCommandTests(EvenniaCommandTest):
 
 class InventoryCommandTests(EvenniaCommandTest):
     def test_inventory_hides_equipped_items_and_reports_slot_usage(self):
-        suit = create_object(
-            UtilityPressureSuit, key="pressure suit", location=self.char1
-        )
+        suit = create_object(EquipableItem, key="test armor", location=self.char1)
         widget = create_object(PortableItem, key="widget", location=self.char1)
         self.assertTrue(suit.equip_to(self.char1, quiet=True))
 
@@ -60,12 +60,12 @@ class InventoryCommandTests(EvenniaCommandTest):
 
         self.assertIn("widget", result)
         self.assertIn("(1/8)", result)
-        self.assertNotIn("pressure suit", result)
+        self.assertNotIn("test armor", result)
 
 
 class TargetedInteractionCommandTests(EvenniaCommandTest):
     def test_social_alias_targets_npc_by_dbref(self):
-        guide = create_object(FriendlyNPC, key="station guide", location=self.room1)
+        guide = create_object(FriendlyNPC, key="guide", location=self.room1)
 
         with patch.object(guide, "at_greet") as at_greet:
             self.call(CmdGreet(), f"#{guide.id}", msg=None, cmdstring="nod")
@@ -73,9 +73,7 @@ class TargetedInteractionCommandTests(EvenniaCommandTest):
         at_greet.assert_called_once_with(self.char1, session=self.session, social="nod")
 
     def test_greeting_dialogue_npc_opens_its_dialogue(self):
-        guide = create_object(
-            OrientationGuide, key="station guide", location=self.room1
-        )
+        guide = create_object(DialogueNPC, key="guide", location=self.room1)
 
         with patch.object(guide, "at_talk") as at_talk:
             guide.at_greet(self.char1, session="test-session", social="wave")
@@ -135,65 +133,21 @@ class SoundTestCommandTests(EvenniaCommandTest):
         self.call(
             CmdSoundTest(),
             "banana",
-            "Unknown sound. Choose confirm, objective, door, terminal, hurt, attack, or scene.",
+            "Unknown sound. Choose confirm, objective, door, hurt, attack, or scene.",
         )
 
 
 class ResourceCommandTests(EvenniaCommandTest):
-    def test_vitals_uses_the_character_career_resource(self):
-        self.char1.db.species = "synth"
-        self.char1.db.career = "technician"
-
+    def test_vitals_reports_health_and_level(self):
         result = self.call(CmdVitals(), "", msg=None)
 
         self.assertIn("Health:", result)
-        self.assertIn("Tech Points:", result)
-        self.assertNotIn("Oxygen:", result)
-
-    def test_synth_oxygen_command_explains_the_immunity(self):
-        self.char1.db.species = "synth"
-
-        self.call(CmdOxygen(), "", "Your synthetic body does not require oxygen.")
-
-
-class SpeciesBenefitCommandTests(EvenniaCommandTest):
-    def setUp(self):
-        super().setUp()
-        self.char1.location = self.room1
-
-    def test_spectrum_reads_authored_clue(self):
-        apply_species(self.char1, "nimri")
-        self.room1.db.spectrum_desc = "A hidden ultraviolet route points east."
-        result = self.call(CmdInnate(), "", msg=None, cmdstring="spectrum")
-        self.assertIn("hidden ultraviolet route", result)
-
-    def test_resonance_reads_authored_clue(self):
-        apply_species(self.char1, "kaelith")
-        self.room1.db.resonance_desc = "One support carries impossible strain."
-        result = self.call(CmdInnate(), "", msg=None, cmdstring="resonate")
-        self.assertIn("impossible strain", result)
-
-    def test_presence_recognizes_friendly_npcs(self):
-        apply_species(self.char1, "veyari")
-        create_object(FriendlyNPC, key="wayhouse keeper", location=self.room1)
-        result = self.call(CmdInnate(), "", msg=None, cmdstring="presence")
-        self.assertIn("wayhouse keeper", result)
-
-    def test_imprint_preserves_and_recalls_one_scene(self):
-        apply_species(self.char1, "serev")
-        self.room1.db.desc = "A room worth remembering."
-        self.call(CmdInnate(), "", "You and your mantle commit", cmdstring="imprint")
-        result = self.call(CmdInnate(), "recall", msg=None, cmdstring="imprint")
-        self.assertIn("A room worth remembering", result)
+        self.assertIn("Level:", result)
 
 
 class KeyboardCommandTests(EvenniaCommandTest):
     def test_equipment_has_short_eq_alias(self):
         self.assertIn("eq", CmdEquipment.aliases)
-
-    def test_cast_has_requested_c_alias(self):
-        self.assertEqual(CmdSkill.key, "cast")
-        self.assertIn("c", CmdSkill.aliases)
 
     def test_numeric_keypad_commands_translate_to_standard_commands(self):
         with patch.object(self.char1, "execute_cmd") as execute:

@@ -38,9 +38,9 @@ def record_room_visit(character, room):
     )
     known.add(room.id)
     if created:
-        from world.achievements import track_quasar_achievement
+        from world.achievements import track_achievement
 
-        track_quasar_achievement(
+        track_achievement(
             character,
             category="explore",
             tracking=str(room.db.map_area or "Uncharted"),
@@ -103,4 +103,4 @@ def build_map_sync(character):
 def send_map_sync(character):
     """Send a per-character area snapshot through GMCP/JSON."""
 
-    character.msg(quasar_map_sync=build_map_sync(character))
+    character.msg(benben_map_sync=build_map_sync(character))

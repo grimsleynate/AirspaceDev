@@ -1,4 +1,4 @@
-"""Registered reusable capabilities for Quasar typeclass hosts."""
+"""Registered reusable capabilities for Benben typeclass hosts."""
 
 from .physical import ContainerStorage, PhysicalDimensions
 

@@ -1,4 +1,4 @@
-"""Routing tests for Quasar's browser clients."""
+"""Routing tests for Benben's browser clients."""
 
 from django.test import TestCase
 
@@ -8,8 +8,8 @@ class WebclientViewTests(TestCase):
         response = self.client.get("/webclient/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="quasar-root"')
-        self.assertContains(response, "quasar-client.js")
+        self.assertContains(response, 'id="benben-root"')
+        self.assertContains(response, "benben-client.js")
         self.assertNotContains(response, 'id="messagewindow"')
 
     def test_legacy_client_remains_available(self):

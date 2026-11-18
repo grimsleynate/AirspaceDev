@@ -103,52 +103,12 @@ class Script(DefaultScript):
     pass
 
 
-class OxygenSystem(Script):
-    """Tick environmental survival only for actively connected characters."""
-
-    def at_script_creation(self):
-        self.key = "quasar_environment"
-        self.desc = "Updates oxygen and asphyxiation for connected characters."
-        self.interval = 5
-        self.repeats = 0
-        self.persistent = True
-        self.start_delay = True
-
-    @staticmethod
-    def _connected_characters():
-        from evennia import SESSION_HANDLER
-
-        return {
-            session.puppet
-            for session in SESSION_HANDLER.get_sessions()
-            if getattr(session, "puppet", None)
-        }
-
-    def at_start(self, **kwargs):
-        """Reconcile live characters after a server reload or cold start."""
-
-        from world.resources import initialize_character, send_character_resources
-
-        for character in self._connected_characters():
-            if hasattr(character, "apply_damage"):
-                initialize_character(character, include_starter_gear=True)
-                send_character_resources(character, force=True)
-
-    def at_repeat(self):
-        from world.resources import tick_character_environment
-
-        characters = self._connected_characters()
-        for character in characters:
-            if hasattr(character, "apply_damage"):
-                tick_character_environment(character, elapsed=self.interval or 5)
-
-
 class CombatSystem(Script):
-    """Advance telegraphed NPC actions and character resource regeneration."""
+    """Advance telegraphed NPC actions and automatic character attacks."""
 
     def at_script_creation(self):
-        self.key = "quasar_combat"
-        self.desc = "Updates active combatants and regenerates career resources."
+        self.key = "combat_system"
+        self.desc = "Updates active combatants."
         self.interval = 1
         self.repeats = 0
         self.persistent = True
@@ -163,25 +123,3 @@ class CombatSystem(Script):
         from world.combat import tick_combat
 
         tick_combat()
-
-
-class VerminSystem(Script):
-    """Maintain capped ambient-hostile populations in registered cities."""
-
-    def at_script_creation(self):
-        self.key = "quasar_vermin"
-        self.desc = "Reconciles weak city vermin and expires old carcasses."
-        self.interval = 20
-        self.repeats = 0
-        self.persistent = True
-        self.start_delay = True
-
-    def at_start(self, **kwargs):
-        from world.vermin import maintain_vermin_population
-
-        maintain_vermin_population()
-
-    def at_repeat(self):
-        from world.vermin import maintain_vermin_population
-
-        maintain_vermin_population()

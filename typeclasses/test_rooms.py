@@ -1,4 +1,4 @@
-"""Tests for Quasar room mapper output."""
+"""Tests for Benben room mapper output."""
 
 from unittest.mock import patch
 
@@ -17,7 +17,7 @@ from .rooms import ASCII_MAP_DIRECTIONS, DIRECTION_NAMES
 class RoomInfoTests(EvenniaTest):
     def setUp(self):
         super().setUp()
-        self.room1.db.map_area = "Test Station"
+        self.room1.db.map_area = "Test Area"
         self.room1.db.map_area_id = 7
         self.room1.db.map_environment = "interior"
         self.room1.db.map_x = 3
@@ -37,10 +37,8 @@ class RoomInfoTests(EvenniaTest):
 
         self.assertEqual(info["num"], self.room1.id)
         self.assertEqual(info["name"], self.room1.key)
-        self.assertEqual(info["area"], "Test Station")
+        self.assertEqual(info["area"], "Test Area")
         self.assertEqual(info["environment"], "interior")
-        self.assertEqual(info["atmosphere"], "breathable")
-        self.assertTrue(info["gravity"])
         self.assertEqual(info["exits"]["n"], self.room2.id)
         self.assertEqual(info["coords"], "7,3,-2,1")
         self.assertEqual(info["coord"], {"id": 7, "x": 3, "y": -2, "z": 1})
@@ -51,14 +49,14 @@ class RoomInfoTests(EvenniaTest):
 
     def test_room_info_separates_visible_entities(self):
         self.char2.location = self.room1
-        create_object(FriendlyNPC, key="Station Guide", location=self.room1)
-        create_object(PortableItem, key="access badge", location=self.room1)
+        create_object(FriendlyNPC, key="Guide", location=self.room1)
+        create_object(PortableItem, key="brass key", location=self.room1)
 
         info = self.room1.get_room_info(self.char1)
 
         self.assertEqual([entity["name"] for entity in info["players"]], ["Char2"])
-        self.assertEqual([entity["name"] for entity in info["npcs"]], ["Station Guide"])
-        self.assertEqual([entity["name"] for entity in info["items"]], ["access badge"])
+        self.assertEqual([entity["name"] for entity in info["npcs"]], ["Guide"])
+        self.assertEqual([entity["name"] for entity in info["items"]], ["brass key"])
 
     def test_looking_at_current_room_sends_room_info(self):
         self.char1.location = self.room1
@@ -132,8 +130,8 @@ class RoomInfoTests(EvenniaTest):
 
     def test_room_appearance_separates_players_npcs_items_and_details(self):
         self.char2.location = self.room1
-        npc = create_object(FriendlyNPC, key="Station Guide", location=self.room1)
-        item = create_object(PortableItem, key="access badge", location=self.room1)
+        npc = create_object(FriendlyNPC, key="Guide", location=self.room1)
+        item = create_object(PortableItem, key="brass key", location=self.room1)
         detail = create_object(PuzzleClue, key="scuffed panel", location=self.room1)
 
         appearance = self.room1.return_appearance(self.char1)
@@ -143,8 +141,8 @@ class RoomInfoTests(EvenniaTest):
         self.assertIn("|wItems:|n", appearance)
         self.assertIn("|wNotable details:|n", appearance)
         self.assertIn("|h|wChar2|n", appearance)
-        self.assertIn("|h|gStation Guide|n", appearance)
-        self.assertIn("|h|yaccess badge|n", appearance)
+        self.assertIn("|h|gGuide|n", appearance)
+        self.assertIn("|h|ybrass key|n", appearance)
         self.assertIn("|h|mscuffed panel|n", appearance)
         self.assertNotEqual(npc.get_display_name(self.char1), self.room1.get_display_name(self.char1))
         self.assertTrue(item.get_display_name(self.char1).startswith("|h|y"))

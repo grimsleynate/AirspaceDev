@@ -1,4 +1,4 @@
-"""Semantic ANSI styling shared by Quasar's world-facing typeclasses.
+"""Semantic ANSI styling shared by world-facing typeclasses.
 
 Color is always paired with a textual section label or entity type. It helps
 players scan a room, but is never the only way important information is

@@ -1,4 +1,4 @@
-"""Tests for Quasar's OOB input functions (GMCP / MSDP / webclient)."""
+"""Tests for Benben's OOB input functions (GMCP / MSDP / webclient)."""
 
 from unittest import TestCase
 from unittest.mock import Mock, patch
@@ -6,12 +6,12 @@ from unittest.mock import Mock, patch
 from server.conf import inputfuncs
 
 
-class QuasarInputFuncTests(TestCase):
+class BenbenInputFuncTests(TestCase):
     @patch("world.resources.send_character_resources")
     def test_character_request_sends_resource_snapshot(self, send_resources):
         session = Mock(puppet=Mock())
 
-        inputfuncs.quasar_character_get(session)
+        inputfuncs.benben_character_get(session)
 
         send_resources.assert_called_once_with(
             session.puppet, session=session, force=True
@@ -21,9 +21,9 @@ class QuasarInputFuncTests(TestCase):
     def test_room_effect_support_is_negotiated_and_synced(self, send_room_effects):
         session = Mock(puppet=Mock())
 
-        inputfuncs.quasar_room_effects_supports(session, version=1)
+        inputfuncs.benben_room_effects_supports(session, version=1)
 
-        session.update_flags.assert_called_once_with(QUASAR_ROOM_EFFECTS=True)
+        session.update_flags.assert_called_once_with(BENBEN_ROOM_EFFECTS=True)
         send_room_effects.assert_called_once_with(
             session.puppet, session=session, force=True
         )
@@ -32,9 +32,9 @@ class QuasarInputFuncTests(TestCase):
     def test_audio_support_is_negotiated_and_synced(self, send_audio_scene):
         session = Mock(puppet=Mock())
 
-        inputfuncs.quasar_audio_supports(session, version=1)
+        inputfuncs.benben_audio_supports(session, version=1)
 
-        session.update_flags.assert_called_once_with(QUASAR_AUDIO=True)
+        session.update_flags.assert_called_once_with(BENBEN_AUDIO=True)
         send_audio_scene.assert_called_once_with(
             session.puppet, session=session, force=True
         )
@@ -43,9 +43,9 @@ class QuasarInputFuncTests(TestCase):
     def test_accessibility_request_applies_account_preferences(self, apply_preferences):
         session = Mock(account=Mock(), puppet=Mock())
 
-        inputfuncs.quasar_accessibility_get(session)
+        inputfuncs.benben_accessibility_get(session)
 
-        session.update_flags.assert_called_once_with(QUASAR_ACCESSIBILITY=True)
+        session.update_flags.assert_called_once_with(BENBEN_ACCESSIBILITY=True)
         apply_preferences.assert_called_once_with(
             session.account, session=session, character=session.puppet
         )
@@ -54,7 +54,7 @@ class QuasarInputFuncTests(TestCase):
     def test_accessibility_support_is_remembered_before_login(self, apply_preferences):
         session = Mock(account=None, puppet=None)
 
-        inputfuncs.quasar_accessibility_get(session)
+        inputfuncs.benben_accessibility_get(session)
 
-        session.update_flags.assert_called_once_with(QUASAR_ACCESSIBILITY=True)
+        session.update_flags.assert_called_once_with(BENBEN_ACCESSIBILITY=True)
         apply_preferences.assert_not_called()

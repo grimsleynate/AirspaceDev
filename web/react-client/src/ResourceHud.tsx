@@ -1,7 +1,4 @@
-import AirRoundedIcon from "@mui/icons-material/AirRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
-import MemoryRoundedIcon from "@mui/icons-material/MemoryRounded";
-import PsychologyRoundedIcon from "@mui/icons-material/PsychologyRounded";
 import TrackChangesRoundedIcon from "@mui/icons-material/TrackChangesRounded";
 import { Box, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -11,10 +8,6 @@ import type { CharacterResourceState } from "./types";
 
 const RESOURCE_PRESENTATION: Record<ResourceBarKind, { color: string; Icon: SvgIconComponent }> = {
   health: { color: "#ff727a", Icon: FavoriteRoundedIcon },
-  tech: { color: "#54dffa", Icon: MemoryRoundedIcon },
-  acuity: { color: "#ca91ff", Icon: PsychologyRoundedIcon },
-  skill: { color: "#ffc766", Icon: TrackChangesRoundedIcon },
-  oxygen: { color: "#67a9ff", Icon: AirRoundedIcon },
   target: { color: "#ff8b5d", Icon: TrackChangesRoundedIcon },
 };
 
@@ -64,14 +57,6 @@ export function ResourceHud({ state }: ResourceHudProps) {
         </Stack>
       ) : (
         <Typography variant="caption" color="text.secondary">Character systems offline</Typography>
-      )}
-      {state?.environment && (
-        <Box className="resource-environment" title={`Atmosphere: ${state.environment.atmosphere}`}>
-          <span className={state.environment.breathable ? "environment-safe" : "environment-danger"} />
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {state.environment.breathable ? "Pressurized" : "No breathable atmosphere"}
-          </Typography>
-        </Box>
       )}
     </Paper>
   );

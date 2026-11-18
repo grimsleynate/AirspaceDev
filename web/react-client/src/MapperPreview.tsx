@@ -20,8 +20,8 @@ const rooms = Object.fromEntries(
     return [id, {
       id,
       name: id === "center" ? "Orientation Hall" : `${id.toUpperCase()} Test Room`,
-      area: "Quasar Mapper Preview",
-      environment: "station",
+      area: "Mapper Preview",
+      environment: "interior",
       exits,
       x,
       y,
@@ -43,7 +43,7 @@ export function MapperPreview() {
     <main className="mapper-preview">
       <header className="mapper-preview-heading">
         <strong>{current.name}</strong>
-        <span>Quasar Mapper Preview</span>
+        <span>Mapper Preview</span>
       </header>
       <section className="mapper-preview-canvas">
         <WorldMap

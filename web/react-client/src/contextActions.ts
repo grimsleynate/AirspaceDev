@@ -10,14 +10,6 @@ export function contextActions(
 ): EntityAction[] {
   const ref = `#${entity.id}`;
   const actions: EntityAction[] = [{ label: "Look", command: `look ${ref}` }];
-  if (entity.readable) actions.push({ label: "Read", command: `read ${ref}` });
-  if (entity.writable && entity.editable) {
-    actions.push(
-      { label: "Write", command: `write ${ref}` },
-      { label: "Title", command: `title ${ref}` },
-    );
-  }
-  if (entity.readable) actions.push({ label: "Hack datalog", command: `hack ${ref}` });
   if (context === "room-item") actions.push({ label: "Get", command: `get ${ref}` });
   if (context === "inventory") {
     actions.push({ label: "Drop", command: `drop ${ref}` });

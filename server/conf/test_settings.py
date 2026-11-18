@@ -1,4 +1,4 @@
-"""Isolated settings for running Quasar's automated test suite."""
+"""Isolated settings for running the automated test suite."""
 
 from .settings import *  # noqa: F403
 

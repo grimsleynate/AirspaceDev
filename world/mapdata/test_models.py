@@ -18,11 +18,11 @@ class CharacterMapVisitTests(EvenniaTest):
     def setUp(self):
         super().setUp()
         self.char1.location = self.room1
-        self.room1.db.map_area = "Test Station"
+        self.room1.db.map_area = "Test Area"
         self.room1.db.map_x = 0
         self.room1.db.map_y = 0
         self.room1.db.map_z = 0
-        self.room2.db.map_area = "Other Station"
+        self.room2.db.map_area = "Other Area"
         CharacterMapVisit.objects.filter(character_id=self.char1.id).delete()
         self.char1.ndb.explored_room_ids = None
 
@@ -51,9 +51,9 @@ class CharacterMapVisitTests(EvenniaTest):
 
         self.assertEqual(explored_room_ids(self.char1), {self.room1.id})
 
-    def test_sync_uses_quasar_gmcp_output(self):
+    def test_sync_uses_benben_gmcp_output(self):
         with patch.object(self.char1, "msg") as mocked_msg:
             send_map_sync(self.char1)
 
-        payload = mocked_msg.call_args.kwargs["quasar_map_sync"]
+        payload = mocked_msg.call_args.kwargs["benben_map_sync"]
         self.assertEqual(payload["character"]["id"], self.char1.id)

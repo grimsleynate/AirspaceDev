@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { commandWithTarget, cycleRoomTarget } from "./targeting";
 
 const targets = [
-  { id: 11, name: "Station Guide", hostile: false },
+  { id: 11, name: "Guide", hostile: false },
   { id: 12, name: "Scavenger", hostile: true },
 ];
 

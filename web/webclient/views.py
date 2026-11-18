@@ -1,4 +1,4 @@
-"""Views for Quasar's browser clients."""
+"""Views for Benben's browser clients."""
 
 from django.conf import settings
 from django.http import Http404

@@ -19,7 +19,7 @@ class AccessibilityTests(EvenniaTest):
         self.account.characters.add(self.char1)
         self.char1.location = self.room1
         self.room1.db.room_effect_period = "night"
-        self.room1.db.room_effect_ids = ["wayhouse.electric_lamps"]
+        self.room1.db.room_effect_ids = ["test.effect"]
 
     def test_screenreader_profile_forces_color_maps_and_media_off(self):
         preferences = set_accessibility_preferences(
@@ -38,7 +38,7 @@ class AccessibilityTests(EvenniaTest):
     def test_preferences_apply_to_transport_and_persist(self):
         set_accessibility_preferences(self.account, screenreader=True)
         session = Mock(
-            protocol_flags={"QUASAR_ACCESSIBILITY": 1}, sessionhandler=Mock()
+            protocol_flags={"BENBEN_ACCESSIBILITY": 1}, sessionhandler=Mock()
         )
 
         apply_accessibility_preferences(
@@ -66,8 +66,8 @@ class AccessibilityTests(EvenniaTest):
     def test_screenreader_session_receives_silence_and_no_visual_effects(self):
         session = Mock(
             protocol_flags={
-                "QUASAR_AUDIO": 1,
-                "QUASAR_ROOM_EFFECTS": 1,
+                "BENBEN_AUDIO": 1,
+                "BENBEN_ROOM_EFFECTS": 1,
                 "SCREENREADER": True,
             }
         )
@@ -76,11 +76,11 @@ class AccessibilityTests(EvenniaTest):
         send_room_effects(self.char1, session=session, force=True)
 
         self.assertEqual(
-            session.msg.call_args_list[0].kwargs["quasar_audio_scene"],
+            session.msg.call_args_list[0].kwargs["benben_audio_scene"],
             build_audio_scene(None),
         )
         self.assertEqual(
-            session.msg.call_args_list[1].kwargs["quasar_room_effects_sync"],
+            session.msg.call_args_list[1].kwargs["benben_room_effects_sync"],
             build_room_effects(None),
         )
 

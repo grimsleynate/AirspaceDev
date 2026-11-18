@@ -76,13 +76,6 @@ class Room(ObjectParent, ContribRPRoom):
 {footer}
     """
 
-    def at_object_creation(self):
-        """New rooms default to breathable air and working gravity."""
-
-        super().at_object_creation()
-        self.db.atmosphere = "breathable"
-        self.db.gravity = True
-
     def get_display_name(self, looker=None, **kwargs):
         """Keep room titles cyan while other entity types use their own color."""
 
@@ -203,14 +196,6 @@ class Room(ObjectParent, ContribRPRoom):
     def return_appearance(self, looker, **kwargs):
         """Place the optional ASCII map above the normal room description."""
 
-        if looker and looker.location == self and (
-            self.db.tutorial_badge_station
-            or (self.key == "Supply Cage" and self.db.map_area == "Quasar Orientation Annex")
-        ):
-            from typeclasses.items import ensure_character_tutorial_badge
-
-            ensure_character_tutorial_badge(looker, self)
-
         appearance = super().return_appearance(looker, **kwargs)
         if not looker or looker.location != self:
             return appearance
@@ -273,17 +258,7 @@ class Room(ObjectParent, ContribRPRoom):
             if getattr(obj, "is_npc", False) or getattr(obj, "is_hostile", False)
         ]
         items = [
-            entity(
-                obj,
-                readable=bool(getattr(obj, "is_readable_document", False)),
-                writable=bool(getattr(obj, "is_writable_document", False)),
-                editable=(
-                    bool(obj.can_edit_original(looker))
-                    if callable(getattr(obj, "can_edit_original", None))
-                    else False
-                ),
-                journal=bool(getattr(obj, "is_journal", False)),
-            )
+            entity(obj)
             for obj in visible_objects
             if getattr(obj, "is_portable_item", False)
         ]
@@ -302,10 +277,6 @@ class Room(ObjectParent, ContribRPRoom):
             # Compatibility names used by Aardwolf-style mappers.
             "zone": area,
             "terrain": environment,
-            "atmosphere": str(self.db.atmosphere or "breathable"),
-            "gravity": bool(
-                True if self.attributes.get("gravity") is None else self.db.gravity
-            ),
         }
 
         # Coordinates are optional. Automappers can still discover and lay
