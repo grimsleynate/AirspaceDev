@@ -52,6 +52,7 @@ export function updateMap(
     players: info.players ?? oldRoom?.players ?? [],
     npcs: info.npcs ?? oldRoom?.npcs ?? [],
     items: info.items ?? oldRoom?.items ?? [],
+    objects: info.objects ?? oldRoom?.objects ?? [],
   };
 
   Object.entries(exits).forEach(([direction, targetId]) => {
@@ -74,6 +75,7 @@ export function updateMap(
         players: target?.players || [],
         npcs: target?.npcs || [],
         items: target?.items || [],
+        objects: target?.objects || [],
       };
     }
   });

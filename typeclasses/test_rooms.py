@@ -157,3 +157,105 @@ class RoomInfoTests(EvenniaTest):
 
         self.assertTrue(description.startswith("The panel is scratched"))
         self.assertIn("|mThe scratches form a shallow clockwise arc.|n", description)
+
+
+class RoomOccupantRefreshRegressionTests(EvenniaTest):
+    """Repair plan step 1 (audit P0/P1): rooms own arrival, not the mover."""
+
+    def test_occupant_room_view_refreshes_once_when_an_npc_arrives(self):
+        self.char1.location = self.room1
+        npc = create_object(FriendlyNPC, key="Wanderer", location=self.room2)
+
+        # EvenniaTest characters are not puppeted; give the observer a session.
+        with patch.object(self.char1.sessions, "all", return_value=[self.session]),                 patch.object(self.char1, "msg") as mocked_msg:
+            npc.move_to(self.room1, quiet=True)
+
+        room_updates = [
+            call.kwargs["room_info"]
+            for call in mocked_msg.call_args_list
+            if "room_info" in call.kwargs
+        ]
+        self.assertEqual(len(room_updates), 1)
+        self.assertEqual(
+            [entity["name"] for entity in room_updates[0]["npcs"]], ["Wanderer"]
+        )
+
+    def test_room_tells_occupants_when_an_npc_arrives(self):
+        watcher = create_object(FriendlyNPC, key="Watcher", location=self.room1)
+        npc = create_object(FriendlyNPC, key="Wanderer", location=self.room2)
+
+        with patch.object(watcher, "at_entity_arrived") as arrived:
+            npc.move_to(self.room1, quiet=True)
+
+        arrived.assert_called_once()
+        self.assertIs(arrived.call_args.args[0], npc)
+
+    def test_aggressive_hostile_engages_an_arriving_character(self):
+        from .npcs import HostileNPC
+
+        self.char1.location = self.room2
+        hostile = create_object(HostileNPC, key="Brute", location=self.room1)
+        hostile.db.aggressive = True
+
+        self.char1.move_to(self.room1, quiet=True)
+
+        self.assertEqual(self.char1.db.combat_target_id, hostile.id)
+        self.assertEqual(hostile.db.combat_target_id, self.char1.id)
+
+
+from evennia import CmdSet
+
+from commands.object_verbs import ObjectVerbCommand
+from .objects import InspectableScenery
+
+
+class CmdTestPress(ObjectVerbCommand):
+    key = "press"
+    client_label = "Press"
+
+    def func(self):
+        if self.targets_this_object():
+            self.caller.msg(f"You press {self.obj.key}.")
+
+
+class TestButtonCmdSet(CmdSet):
+    key = "test_button"
+
+    def at_cmdset_creation(self):
+        self.add(CmdTestPress())
+
+
+class ObjectVerbTests(EvenniaTest):
+    """Repair plan step 8: one bespoke verb, in text and in room_info."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.location = self.room1
+        self.button = create_object(InspectableScenery, key="brass button", location=self.room1)
+        self.button.cmdset.add(TestButtonCmdSet)
+
+    def test_object_verb_works_as_text_from_the_room(self):
+        with patch.object(self.char1, "msg") as mocked_msg:
+            self.char1.execute_cmd("press")
+
+        texts = [str(call.args[0]) if call.args else str(call.kwargs.get("text")) for call in mocked_msg.call_args_list]
+        self.assertTrue(any("You press brass button." in text for text in texts), texts)
+
+    def test_object_verb_appears_in_room_info(self):
+        info = self.room1.get_room_info(self.char1)
+
+        self.assertEqual(
+            info["objects"],
+            [{
+                "id": self.button.id,
+                "name": "brass button",
+                "actions": [{"label": "Press", "command": f"press #{self.button.id}"}],
+            }],
+        )
+
+    def test_scenery_without_verbs_stays_out_of_the_panel(self):
+        create_object(InspectableScenery, key="plain wall", location=self.room1)
+
+        info = self.room1.get_room_info(self.char1)
+
+        self.assertEqual([entry["name"] for entry in info["objects"]], ["brass button"])

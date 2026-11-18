@@ -15,6 +15,20 @@ from evennia.contrib.rpg.rpsystem import ContribRPObject
 from .appearance import CLUE_TEXT, INTERACTABLE_NAME, style
 
 
+def hostile_to(obj, other):
+    """Safe ``obj.is_hostile_to(other)`` for objects that may lack the hook."""
+
+    hook = getattr(obj, "is_hostile_to", None)
+    return bool(hook(other)) if callable(hook) else False
+
+
+def attackable_by(obj, attacker):
+    """Safe ``obj.can_be_attacked_by(attacker)``."""
+
+    hook = getattr(obj, "can_be_attacked_by", None)
+    return bool(hook(attacker)) if callable(hook) else False
+
+
 class ObjectParent:
     """
     This is a mixin that can be used to override *all* entities inheriting at
@@ -30,6 +44,78 @@ class ObjectParent:
     and therefore cannot safely run there. Components are currently used
     only for physical objects and containers.
     """
+
+    def at_post_move(self, source_location, move_type="move", **kwargs):
+        """Once any move finishes, let rooms react and refresh their views."""
+
+        super().at_post_move(source_location, move_type=move_type, **kwargs)
+        from world.room_events import settle_moves
+
+        settle_moves()
+
+    def at_entity_arrived(self, arrival, source_location=None, move_type="move"):
+        """Called by the room when anything arrives where this object is.
+
+        Override for general reactions. The default keeps the older
+        character-only ``at_character_entered`` hook working.
+        """
+
+        hook = getattr(self, "at_character_entered", None)
+        if callable(hook) and getattr(arrival, "is_character", False):
+            hook(arrival)
+
+    # -- Hostility -----------------------------------------------------------
+    # Hostility is a relationship, not a class. These defaults reproduce the
+    # old ``is_hostile`` flag; factions, provocation, guards or PvP override
+    # them (or delegate to a relationship table) without touching combat.
+
+    def is_hostile_to(self, other):
+        """Whether this entity treats ``other`` as an enemy."""
+
+        return other is not self and bool(getattr(self, "is_hostile", False))
+
+    def can_be_attacked_by(self, attacker):
+        """Whether ``attacker`` may start or continue a fight with this entity."""
+
+        return attacker is not self and self.is_hostile_to(attacker)
+
+    # -- Client presence -----------------------------------------------------
+    # room_info and the web client's context menu read these, so any object can
+    # appear in the room panel and offer its own verbs without a new class.
+
+    def get_client_category(self, looker=None):
+        """Room-panel group: "player", "npc", "item", "object" or None (hidden)."""
+
+        if getattr(self, "is_character", False):
+            return "player"
+        if getattr(self, "is_npc", False) or self.is_hostile_to(looker):
+            return "npc"
+        if getattr(self, "is_portable_item", False):
+            return "item"
+        if self.get_client_actions(looker):
+            return "object"  # scenery with bespoke verbs
+        return None
+
+    def get_client_actions(self, looker=None):
+        """Bespoke verbs this object offers, as ``{"label", "command"}`` dicts.
+
+        By default these come from commands on the object's own cmdset that set
+        ``client_label`` (see ``commands.object_verbs.ObjectVerbCommand``), so
+        the text verb and the client button stay the same command.
+        """
+
+        actions = []
+        seen = set()
+        for cmdset in self.cmdset.all():
+            for cmd in cmdset.commands:
+                label = getattr(cmd, "client_label", None)
+                if not label or cmd.key in seen:
+                    continue
+                if looker is not None and not cmd.access(looker, "cmd"):
+                    continue
+                seen.add(cmd.key)
+                actions.append({"label": str(label), "command": f"{cmd.key} #{self.id}"})
+        return actions
 
 
 class Object(ComponentHolderMixin, ObjectParent, ContribRPObject):

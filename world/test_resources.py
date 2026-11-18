@@ -45,3 +45,29 @@ class CharacterResourceTests(EvenniaTest):
         self.assertTrue(payload["inventory"][0]["container"])
         self.assertEqual(payload["inventory"][0]["contents_count"], 1)
         self.assertEqual(payload["equipment"][0]["name"], "test armor")
+
+
+class HealthAuthorityRegressionTests(EvenniaTest):
+    """Repair plan step 1 (audit P0-2): the Health trait is the authority."""
+
+    def test_health_set_on_the_trait_survives_a_payload_rebuild(self):
+        self.char1.traits.health.current = 40
+
+        payload = build_resource_payload(self.char1)
+
+        self.assertEqual(self.char1.traits.health.current, 40)
+        self.assertEqual(payload["health"]["current"], 40)
+
+    def test_one_take_damage_serves_characters_and_hostiles(self):
+        from typeclasses.npcs import HostileNPC
+        from world.health import health_of, take_damage
+
+        hostile = create_object(HostileNPC, key="test hostile", location=self.room1)
+        self.assertEqual(health_of(hostile), (55, 55))
+
+        self.assertEqual(take_damage(hostile, 10, source=self.char1), 10)
+        self.assertEqual(take_damage(self.char1, 10, source=hostile, message=False), 10)
+
+        self.assertEqual(health_of(hostile)[0], 45)
+        self.assertEqual(hostile.traits.health.current, 45)
+        self.assertEqual(self.char1.traits.health.current, health_of(self.char1)[1] - 10)

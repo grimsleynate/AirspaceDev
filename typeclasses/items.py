@@ -26,15 +26,10 @@ def _sync_portable_move(item, source_location):
 
             send_character_resources(holder, force=True)
 
-    rooms = set()
+    from world.room_events import mark_room_dirty
+
     for location in holders:
-        current = location
-        while current and not hasattr(current, "get_room_info"):
-            current = current.location
-        if current:
-            rooms.add(current)
-    for room in rooms:
-        room.send_room_info()
+        mark_room_dirty(location)
 
 
 def container_sizes_enabled():
@@ -125,8 +120,9 @@ class PortableItem(PhysicalDimensionsMixin, Object):
     )
 
     def at_post_move(self, source_location, **kwargs):
-        super().at_post_move(source_location, **kwargs)
+        # Mark views first; ObjectParent.at_post_move flushes them once.
         _sync_portable_move(self, source_location)
+        super().at_post_move(source_location, **kwargs)
 
     def get_display_name(self, looker=None, **kwargs):
         """Make manipulable items scannable without coloring room prose."""
@@ -156,8 +152,9 @@ class BasicBackpack(PhysicalDimensionsMixin, ContainerStorageMixin, ContribConta
     )
 
     def at_post_move(self, source_location, **kwargs):
-        super().at_post_move(source_location, **kwargs)
+        # Mark views first; ObjectParent.at_post_move flushes them once.
         _sync_portable_move(self, source_location)
+        super().at_post_move(source_location, **kwargs)
 
     def at_object_creation(self):
         super().at_object_creation()
@@ -214,7 +211,27 @@ class EquipableItem(PortableItem):
 
     @property
     def is_equipped(self):
-        return bool(self.db.equipped)
+        """Equipped only while carried by the character that equipped it."""
+
+        if not self.db.equipped or not self.location:
+            return False
+        wearer_id = self.db.equipped_by
+        # Legacy rows predate ``equipped_by``; trust their current holder.
+        return wearer_id is None or wearer_id == self.location.id
+
+    def _clear_equipped(self):
+        self.db.equipped = False
+        self.attributes.remove("equipped_by")
+
+    def at_post_move(self, source_location, **kwargs):
+        # Any move off the wearer (theft, script, admin teleport) unequips.
+        if self.db.equipped:
+            wearer_id = self.db.equipped_by
+            if wearer_id is None and source_location:
+                wearer_id = source_location.id  # legacy row: it was on the source
+            if not self.location or self.location.id != wearer_id:
+                self._clear_equipped()
+        super().at_post_move(source_location, **kwargs)
 
     def combat_stat_summary(self):
         """Return short player-facing modifiers for equipment listings."""
@@ -261,6 +278,7 @@ class EquipableItem(PortableItem):
                 )
             return False
         self.db.equipped = True
+        self.db.equipped_by = wearer.id
         if not quiet:
             wearer.msg(f"You equip {self.get_display_name(wearer)}.")
         from world.resources import ensure_character_resources, send_character_resources
@@ -283,7 +301,7 @@ class EquipableItem(PortableItem):
                     "Free a slot before unequipping it."
                 )
             return False
-        self.db.equipped = False
+        self._clear_equipped()
         if not quiet:
             wearer.msg(f"You unequip {self.get_display_name(wearer)}.")
         from world.resources import ensure_character_resources, send_character_resources

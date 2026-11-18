@@ -30,7 +30,7 @@ const rooms = Object.fromEntries(
       description: "A diagnostic room used to preview the mapper.",
       players: [],
       npcs: [],
-      items: [],
+      items: [], objects: [],
     } satisfies MappedRoom];
   }),
 );

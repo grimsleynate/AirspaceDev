@@ -1,7 +1,7 @@
-import type { InventoryEntity, RoomEntity } from "./types";
+import type { EntityAction, InventoryEntity, RoomEntity } from "./types";
 
-export type EntityContext = "inventory" | "equipment" | "room-item" | "player" | "npc";
-export interface EntityAction { label: string; command: string }
+export type { EntityAction };
+export type EntityContext = "inventory" | "equipment" | "room-item" | "room-object" | "player" | "npc";
 
 export function contextActions(
   context: EntityContext,
@@ -37,5 +37,10 @@ export function contextActions(
       { label: "Salute", command: `salute ${ref}` },
     );
   }
+  // Server-declared bespoke verbs (get_client_actions) come last.
+  const offered = "actions" in entity ? entity.actions ?? [] : [];
+  offered.forEach((action) => {
+    if (!actions.some((existing) => existing.command === action.command)) actions.push(action);
+  });
   return actions;
 }

@@ -14,6 +14,8 @@ from time import time
 
 from evennia.objects.models import ObjectDB
 
+from typeclasses.objects import attackable_by
+
 # ---------------------------------------------------------------------------
 # Tuning: progression and cadence
 # ---------------------------------------------------------------------------
@@ -219,7 +221,10 @@ def hostile_combat_stats(hostile):
 
 
 def combat_stats(combatant):
-    return hostile_combat_stats(combatant) if getattr(combatant, "is_hostile", False) else character_combat_stats(combatant)
+    # Stat source is a matter of kind (player vs. NPC), not of hostility.
+    if getattr(combatant, "is_character", False):
+        return character_combat_stats(combatant)
+    return hostile_combat_stats(combatant)
 
 
 def armor_mitigation(armor):
@@ -238,7 +243,7 @@ def current_target(character):
     target = resolve_object(character.db.combat_target_id)
     if (
         not target
-        or not getattr(target, "is_hostile", False)
+        or not attackable_by(target, character)
         or target.location != character.location
         or bool(target.db.is_defeated)
     ):
@@ -253,12 +258,15 @@ def combat_payload(character):
     now = time()
     target_data = None
     if target:
+        from world.health import health_of
+
+        target_health, target_health_max = health_of(target)
         target_data = {
             "id": target.id,
             "name": target.key,
             "level": _number(target.db.level, 1, 1),
-            "health": _number(target.db.health_current, 0, 0),
-            "health_max": _number(target.db.health_max, 1, 1),
+            "health": target_health,
+            "health_max": target_health_max,
             "intent": dict(target.db.combat_intent or {}) or None,
         }
     return {
@@ -317,22 +325,24 @@ def _weapon_narration(attacker, target, attacker_stats, damage=None):
 
 
 def _apply_combat_damage(attacker, target, damage):
-    if getattr(target, "is_hostile", False):
-        before = _number(target.db.health_current, 0, 0)
-        target.db.health_current = max(0, before - damage)
-        after = int(target.db.health_current)
+    from world.health import health_of, take_damage
+
+    before, _maximum = health_of(target)
+    actual = take_damage(
+        target, damage, source=attacker, damage_type="combat", message=False
+    )
+    after, _maximum = health_of(target)
+    if not getattr(target, "is_character", False):
         contributors = dict(target.db.combat_contributors or {})
-        contributors[str(attacker.id)] = contributors.get(str(attacker.id), 0) + min(before, damage)
+        contributors[str(attacker.id)] = contributors.get(str(attacker.id), 0) + actual
         target.db.combat_contributors = contributors
         damage_hook = getattr(target, "at_combat_damage", None)
         if damage_hook:
-            damage_hook(attacker, min(before, damage), before, after)
+            damage_hook(attacker, actual, before, after)
         if after <= 0:
             defeat_hostile(target)
-    else:
-        target.apply_damage(damage, damage_type="combat", message=False)
-        if _number(target.db.health_current, 0, 0) <= 0:
-            handle_character_defeat(target)
+    elif after <= 0:
+        handle_character_defeat(target, attacker=attacker)
 
 
 def resolve_attack(
@@ -428,7 +438,7 @@ def player_attack(character, hostile, now=None, automatic=False):
     now = time() if now is None else now
     if not can_character_act(character, now=now, quiet=automatic):
         return None
-    if not hostile or not getattr(hostile, "is_hostile", False) or hostile.location != character.location:
+    if not hostile or not attackable_by(hostile, character) or hostile.location != character.location:
         character.msg("You can only attack a hostile target in your current room.")
         return None
     if hostile.db.is_defeated:
@@ -448,6 +458,9 @@ def player_attack(character, hostile, now=None, automatic=False):
 
     emit_audio(character, "combat.attack", priority=65)
     send_character_resources(character, force=True)
+    from world.room_events import flush_room_views
+
+    flush_room_views()
     return result
 
 
@@ -492,10 +505,17 @@ def defeat_hostile(hostile):
     if hostile.db.is_defeated:
         return
     hostile.db.is_defeated = True
-    hostile.db.health_current = 0
+    from world.health import health_of, take_damage
+
+    remaining, _maximum = health_of(hostile)
+    if remaining > 0:  # defeated by something other than damage
+        take_damage(hostile, remaining, damage_type="defeat", message=False)
     hostile.db.combat_intent = None
     hostile.db.combat_target_id = None
     hostile.db.respawn_at = time() + max(0, float(hostile.db.respawn_seconds or 0))
+    from world.room_events import mark_room_dirty
+
+    mark_room_dirty(hostile)
     if hostile.location:
         hostile.location.msg_contents(
             f"|h|r{hostile.key}|n collapses, defeated.", from_obj=hostile
@@ -529,23 +549,56 @@ def defeat_hostile(hostile):
 
 def reset_hostile(hostile, announce=True):
     hostile.db.is_defeated = False
-    hostile.db.health_current = _number(hostile.db.health_max, 1, 1)
+    from world.health import heal
+
+    heal(hostile)
     hostile.db.combat_target_id = None
     hostile.db.combat_intent = None
     hostile.db.combat_contributors = {}
     hostile.db.next_attack_at = None
     hostile.db.respawn_at = None
     hostile.tags.remove(COMBAT_ACTIVE_TAG, category=COMBAT_TAG_CATEGORY)
+    from world.room_events import mark_room_dirty
+
+    mark_room_dirty(hostile)
     if announce and hostile.location:
         hostile.location.msg_contents(f"|y{hostile.key} recovers.|n", from_obj=hostile)
 
 
-def handle_character_defeat(character):
-    """Disengage and recover in place without an XP or item penalty."""
+def hostiles_engaging(character, attacker=None):
+    """Every hostile fighting ``character``: its remembered target, the
+    attacker that landed the blow, and anything targeting it."""
 
-    hostile = resolve_object(character.db.combat_target_id)
+    from evennia import search_tag
+
+    candidates = [resolve_object(character.db.combat_target_id), attacker]
+    candidates += list(search_tag(COMBAT_ACTIVE_TAG, category=COMBAT_TAG_CATEGORY))
+    if character.location:
+        candidates += list(character.location.contents)
+    engaged = []
+    for hostile in candidates:
+        if (
+            hostile
+            and hostile not in engaged
+            and not getattr(hostile, "is_character", False)
+            and (
+                hostile is attacker
+                or hostile.id == _number(character.db.combat_target_id, 0)
+                or _number(hostile.db.combat_target_id, 0) == character.id
+            )
+        ):
+            engaged.append(hostile)
+    return engaged
+
+
+def handle_character_defeat(character, attacker=None):
+    """Disengage every hostile and recover in place without an XP or item penalty."""
+
+    engaged = hostiles_engaging(character, attacker=attacker)
     leave_combat(character)
-    if hostile and getattr(hostile, "is_hostile", False):
+    for hostile in engaged:
+        if hostile.db.is_defeated:
+            continue
         reset_hostile(hostile, announce=False)
     from world.resources import ensure_character_resources, restore_health
 
@@ -616,7 +669,9 @@ def tick_combat(now=None):
 
     now = time() if now is None else now
     for hostile in search_tag(COMBAT_ACTIVE_TAG, category=COMBAT_TAG_CATEGORY):
-        if getattr(hostile, "is_hostile", False):
+        # Tagged combatants are NPCs; whether they still want to fight is
+        # tick_hostile's business (it drops targets that left).
+        if not getattr(hostile, "is_character", False):
             tick_hostile(hostile, now=now)
     characters = {
         session.puppet
@@ -626,3 +681,6 @@ def tick_combat(now=None):
     for character in characters:
         if hasattr(character, "apply_damage"):
             tick_character_combat(character, now=now)
+    from world.room_events import flush_room_views
+
+    flush_room_views()

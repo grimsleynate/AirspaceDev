@@ -43,7 +43,7 @@ def record_room_visit(character, room):
         track_achievement(
             character,
             category="explore",
-            tracking=str(room.db.map_area or "Uncharted"),
+            tracking=room.area_key,
         )
     return created
 
@@ -70,8 +70,7 @@ def build_map_sync(character):
             "rooms": [],
         }
 
-    record_room_visit(character, current)
-    area = current.db.map_area or "Uncharted"
+    area_key = current.area_key
     room_ids = explored_room_ids(character)
     rooms = []
     valid_ids = set()
@@ -80,7 +79,7 @@ def build_map_sync(character):
         if not hasattr(room, "get_room_info"):
             continue
         valid_ids.add(room.id)
-        if (room.db.map_area or "Uncharted") == area:
+        if room.area_key == area_key:
             rooms.append(room.get_room_info(character))
 
     # Remove visits whose rooms no longer exist or are no longer rooms.
@@ -95,7 +94,8 @@ def build_map_sync(character):
         "revision": MAP_PROTOCOL_REVISION,
         "character": {"id": character.id, "name": character.key},
         "current": current.id,
-        "area": area,
+        "area": current.area_name,
+        "area_key": area_key,
         "rooms": rooms,
     }
 

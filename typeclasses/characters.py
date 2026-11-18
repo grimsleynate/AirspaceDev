@@ -9,15 +9,14 @@ creation commands.
 """
 
 from evennia.objects.objects import DefaultCharacter
-from evennia.contrib.rpg.traits import TraitHandler
 from evennia.contrib.rpg.rpsystem import ContribRPCharacter
-from evennia.utils import lazy_property
 
+from .damageable import DamageableMixin
 from .objects import ObjectParent
 from .appearance import PLAYER_NAME, style
 
 
-class Character(ObjectParent, ContribRPCharacter):
+class Character(DamageableMixin, ObjectParent, ContribRPCharacter):
     """
     The Character just re-implements some of the Object's methods and hooks
     to represent a Character entity in-game.
@@ -28,12 +27,36 @@ class Character(ObjectParent, ContribRPCharacter):
     """
 
     inventory_capacity = 8
+    is_character = True
 
-    @lazy_property
-    def traits(self):
-        """Core gauges such as Health."""
+    def calculate_health_max(self):
+        """Derive maximum health from base, level and equipped gear."""
 
-        return TraitHandler(self, db_attribute_key="character_traits")
+        from world.combat import calculate_max_health
+
+        return calculate_max_health(self)
+
+    def at_damaged(self, amount, source=None, damage_type="damage", before=0, after=0, message=True):
+        if message and amount:
+            self.msg(f"|rYou take {amount} damage.|n")
+        if amount:
+            from world.audio import emit_audio
+
+            emit_audio(self, "combat.player_hurt", priority=80)
+        if after <= 0 and not self.db.incapacitated:
+            self.db.incapacitated = True
+            self.msg("|rYour strength gives out and you lose consciousness.|n")
+        from world.resources import send_character_resources
+
+        send_character_resources(self)
+
+    def at_healed(self, amount, source=None):
+        from world.health import health_of
+        from world.resources import send_character_resources
+
+        if health_of(self)[0] > 0:
+            self.db.incapacitated = False
+        send_character_resources(self)
 
     def inventory_items(self):
         """Return direct carried objects that occupy inventory slots."""
@@ -79,19 +102,18 @@ class Character(ObjectParent, ContribRPCharacter):
         return style(name, PLAYER_NAME)
 
     def at_post_move(self, source_location, move_type="move", **kwargs):
-        """Refresh client state and let room occupants react to an arrival."""
+        """Refresh this character's own client state after a move.
+
+        Combat disengagement and occupant reactions belong to the rooms
+        (``Room.at_object_leave`` / ``Room.at_arrival``).
+        """
 
         super().at_post_move(source_location, move_type=move_type, **kwargs)
         if not self.location or source_location == self.location:
             return
 
-        if self.db.combat_target_id:
-            from world.combat import leave_combat
-
-            leave_combat(self, message=True)
-
-        source_area = source_location.db.map_area if source_location else None
-        destination_area = self.location.db.map_area
+        source_area = getattr(source_location, "area_key", None)
+        destination_area = getattr(self.location, "area_key", None)
         if source_area != destination_area:
             from world.mapping import send_map_sync
 
@@ -102,10 +124,6 @@ class Character(ObjectParent, ContribRPCharacter):
 
         send_audio_scene(self)
         send_room_effects(self)
-
-        for occupant in self.location.contents:
-            if occupant is not self and hasattr(occupant, "at_character_entered"):
-                occupant.at_character_entered(self)
 
     def at_post_puppet(self, **kwargs):
         """Initialize and synchronize this character after selection."""
@@ -120,6 +138,11 @@ class Character(ObjectParent, ContribRPCharacter):
         from world.mapping import send_map_sync
         from world.resources import send_character_resources
 
+        if hasattr(self.location, "area_key"):
+            from world.mapping import record_room_visit
+
+            # Entering play counts as arriving where the character stands.
+            record_room_visit(self, self.location)
         send_map_sync(self)
         for session in self.sessions.all():
             apply_accessibility_preferences(self.account, session=session, character=self)
@@ -155,18 +178,18 @@ class Character(ObjectParent, ContribRPCharacter):
             )
 
     def apply_damage(self, amount, damage_type="damage", message=True):
-        """Public hook for combat, hazards, and future abilities."""
+        """Compatibility alias for ``world.health.take_damage``."""
 
-        from world.resources import apply_damage
+        from world.health import take_damage
 
-        return apply_damage(self, amount, damage_type=damage_type, message=message)
+        return take_damage(self, amount, damage_type=damage_type, message=message)
 
     def restore_health(self, amount=None):
-        """Public hook for healing items and recovery systems."""
+        """Compatibility alias for ``world.health.heal``."""
 
-        from world.resources import restore_health
+        from world.health import heal
 
-        return restore_health(self, amount=amount)
+        return heal(self, amount=amount)
 
     def award_experience(self, amount, source=None):
         """Public hook for combat, quests, and future exploration rewards."""

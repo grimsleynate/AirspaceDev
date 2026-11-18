@@ -30,4 +30,15 @@ describe("entity context actions", () => {
     expect(friendly).toContain("Greet");
     expect(friendly).toContain("Talk");
   });
+
+  it("appends server-declared verbs without duplicating built-ins", () => {
+    const button = {
+      id: 12, name: "brass button",
+      actions: [{ label: "Press", command: "press #12" }, { label: "Look", command: "look #12" }],
+    };
+    expect(contextActions("room-object", button, undefined)).toEqual([
+      { label: "Look", command: "look #12" },
+      { label: "Press", command: "press #12" },
+    ]);
+  });
 });

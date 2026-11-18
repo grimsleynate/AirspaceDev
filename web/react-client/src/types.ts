@@ -19,6 +19,7 @@ export interface RoomInfo {
   num: string | number;
   name: string;
   area?: string;
+  area_key?: string;
   zone?: string;
   environment?: string;
   terrain?: string;
@@ -29,12 +30,17 @@ export interface RoomInfo {
   players?: RoomEntity[];
   npcs?: RoomEntity[];
   items?: RoomEntity[];
+  objects?: RoomEntity[];
 }
+
+export interface EntityAction { label: string; command: string }
 
 export interface RoomEntity {
   id: string | number;
   name: string;
   hostile?: boolean;
+  /** Bespoke verbs the server says this entity offers. */
+  actions?: EntityAction[];
 }
 
 export interface InventoryEntity {
@@ -70,6 +76,7 @@ export interface MappedRoom {
   players: RoomEntity[];
   npcs: RoomEntity[];
   items: RoomEntity[];
+  objects: RoomEntity[];
 }
 
 export interface AudioSceneLayer {

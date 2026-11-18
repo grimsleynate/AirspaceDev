@@ -17,7 +17,7 @@ function room(id: string, x: number, y: number, exits: Record<string, string>): 
     description: "",
     players: [],
     npcs: [],
-    items: [],
+    items: [], objects: [],
   };
 }
 

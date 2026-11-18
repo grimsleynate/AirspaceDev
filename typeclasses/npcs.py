@@ -2,6 +2,7 @@
 
 from evennia.utils.evmenu import EvMenu
 
+from .damageable import DamageableMixin
 from .objects import Object
 from .appearance import FRIENDLY_NPC_NAME, HOSTILE_NPC_NAME, style
 
@@ -63,7 +64,7 @@ class FriendlyNPC(Object):
         )
 
 
-class HostileNPC(Object):
+class HostileNPC(DamageableMixin, Object):
     """A server-driven combatant with readable, interruptible attacks."""
 
     is_npc = True
@@ -73,8 +74,7 @@ class HostileNPC(Object):
         super().at_object_creation()
         self.locks.add("get:false();puppet:false()")
         self.db.level = 1
-        self.db.health_max = 55
-        self.db.health_current = 55
+        self.db.base_health_max = 55
         self.db.damage_min = 6
         self.db.damage_max = 9
         self.db.accuracy = 0
@@ -89,6 +89,9 @@ class HostileNPC(Object):
         self.db.aggressive = False
         self.db.is_defeated = False
         self.db.combat_contributors = {}
+        from world.health import ensure_health
+
+        ensure_health(self)
 
     def get_display_name(self, looker=None, **kwargs):
         name = super().get_display_name(looker, **kwargs)
@@ -100,8 +103,9 @@ class HostileNPC(Object):
         description = super().get_display_desc(looker, **kwargs)
         if self.db.is_defeated:
             return f"{description}\nIt is motionless and no longer a threat."
-        current = max(0, int(self.db.health_current or 0))
-        maximum = max(1, int(self.db.health_max or 1))
+        from world.health import health_of
+
+        current, maximum = health_of(self)
         ratio = current / maximum
         condition = (
             "unhurt"

@@ -593,6 +593,14 @@ export default function App({ config }: AppProps) {
                       selectedId={selectedTargetId}
                       onSelect={(event, target) => openActionMenu(event, "npc", target)}
                     />
+                    {currentRoom.objects.length ? (
+                      <EntityLine
+                        label="Objects"
+                        entities={currentRoom.objects}
+                        tone="item"
+                        onSelect={(event, object) => openActionMenu(event, "room-object", object)}
+                      />
+                    ) : null}
                   </Stack> : <Typography color="text.secondary">No room information available.</Typography>
                 )}
               </Box>

@@ -5,6 +5,7 @@ Rooms are simple containers that has no location of their own.
 
 """
 
+import re
 from collections import defaultdict
 
 from evennia.objects.objects import DefaultRoom
@@ -12,7 +13,7 @@ from evennia.utils.utils import iter_to_str
 from evennia.utils.ansi import strip_ansi
 from evennia.contrib.rpg.rpsystem import ContribRPRoom
 
-from .objects import ObjectParent
+from .objects import ObjectParent, hostile_to
 from .appearance import ROOM_NAME, style
 
 
@@ -53,6 +54,14 @@ def _exit_is_mapper_visible(exit_obj, looker=None):
     if exit_obj.db.map_hidden:
         return False
     return not looker or exit_obj.access(looker, "view")
+
+
+UNCHARTED_AREA_KEY = "uncharted"
+UNCHARTED_AREA_NAME = "Uncharted"
+
+
+def _slug(text):
+    return "_".join(re.findall(r"[a-z0-9]+", str(text).lower()))
 
 
 class Room(ObjectParent, ContribRPRoom):
@@ -100,14 +109,14 @@ class Room(ObjectParent, ContribRPRoom):
             self.contents_get(content_type="object"), looker, **kwargs
         )
         categories = (
-            ("Hostiles", [thing for thing in things if getattr(thing, "is_hostile", False)]),
+            ("Hostiles", [thing for thing in things if hostile_to(thing, looker)]),
             (
                 "People",
                 [
                     thing
                     for thing in things
                     if getattr(thing, "is_npc", False)
-                    and not getattr(thing, "is_hostile", False)
+                    and not hostile_to(thing, looker)
                 ],
             ),
             (
@@ -207,6 +216,28 @@ class Room(ObjectParent, ContribRPRoom):
             return appearance
         return f"{self.get_ascii_map(looker)}\n{appearance}"
 
+    # -- Area identity -------------------------------------------------------
+    # area_key     stable grouping key ("starting_vale"); never shown to players
+    # map_area     display name ("Starting Vale"); safe to rename
+    # map_area_id  mapper coordinate-system id; one area may span several
+    # The Uncharted fallback lives here and nowhere else.
+
+    @property
+    def area_key(self):
+        key = self.db.area_key
+        if key:
+            return str(key)
+        # Rooms authored before area_key existed derive one from their name.
+        return _slug(self.db.map_area or "") or UNCHARTED_AREA_KEY
+
+    @property
+    def area_name(self):
+        name = self.db.map_area
+        if name:
+            return str(name)
+        key = self.db.area_key
+        return str(key).replace("_", " ").title() if key else UNCHARTED_AREA_NAME
+
     def get_room_info(self, looker=None):
         """
         Build one canonical room payload for external and web mappers.
@@ -230,7 +261,7 @@ class Room(ObjectParent, ContribRPRoom):
                 continue
             exits[direction] = destination.id
 
-        area = self.db.map_area or "Uncharted"
+        area = self.area_name
         environment = self.db.map_environment or "interior"
         area_id = self.db.map_area_id or 0
         x = self.db.map_x
@@ -244,35 +275,36 @@ class Room(ObjectParent, ContribRPRoom):
             self.contents_get(content_type="object"), looker
         )
 
-        def entity(obj, **extra):
-            return {
-                "id": obj.id,
-                "name": strip_ansi(obj.get_display_name(looker)),
-                **extra,
-            }
-
-        players = [entity(obj) for obj in visible_characters if obj is not looker]
-        npcs = [
-            entity(obj, hostile=bool(getattr(obj, "is_hostile", False)))
-            for obj in visible_objects
-            if getattr(obj, "is_npc", False) or getattr(obj, "is_hostile", False)
-        ]
-        items = [
-            entity(obj)
-            for obj in visible_objects
-            if getattr(obj, "is_portable_item", False)
-        ]
+        groups = {"player": [], "npc": [], "item": [], "object": []}
+        for obj in [*visible_characters, *visible_objects]:
+            if obj is looker:
+                continue
+            category_hook = getattr(obj, "get_client_category", None)
+            category = category_hook(looker) if callable(category_hook) else None
+            if category not in groups:
+                continue
+            entry = {"id": obj.id, "name": strip_ansi(obj.get_display_name(looker))}
+            if category == "npc":
+                entry["hostile"] = hostile_to(obj, looker)
+            actions_hook = getattr(obj, "get_client_actions", None)
+            actions = actions_hook(looker) if callable(actions_hook) else []
+            if actions:
+                entry["actions"] = actions
+            groups[category].append(entry)
 
         info = {
             "num": self.id,
             "name": self.key,
             "area": area,
+            # Stable key, so clients can tell apart areas that share a name.
+            "area_key": self.area_key,
             "environment": environment,
             "details": list(self.db.map_details or []),
             "description": strip_ansi(self.get_display_desc(looker)),
-            "players": players,
-            "npcs": npcs,
-            "items": items,
+            "players": groups["player"],
+            "npcs": groups["npc"],
+            "items": groups["item"],
+            "objects": groups["object"],
             "exits": exits,
             # Compatibility names used by Aardwolf-style mappers.
             "zone": area,
@@ -294,12 +326,49 @@ class Room(ObjectParent, ContribRPRoom):
             if character.sessions.all():
                 character.msg(room_info=self.get_room_info(character))
 
+    # -- Arrival and departure ---------------------------------------------
+    # These fire for every mover (player, NPC, item) during move_to. They only
+    # record work; world.room_events runs it once the move has finished.
+
+    def at_object_receive(self, moved_obj, source_location, move_type="move", **kwargs):
+        super().at_object_receive(moved_obj, source_location, move_type=move_type, **kwargs)
+        from world.room_events import mark_room_dirty, queue_arrival
+
+        mark_room_dirty(self)
+        queue_arrival(self, moved_obj, source_location, move_type)
+
+    def at_object_leave(self, moved_obj, target_location, move_type="move", **kwargs):
+        super().at_object_leave(moved_obj, target_location, move_type=move_type, **kwargs)
+        from world.room_events import mark_room_dirty
+
+        mark_room_dirty(self)
+        if moved_obj.attributes.get("combat_target_id"):
+            from world.combat import leave_combat
+
+            leave_combat(moved_obj, message=True)
+
+    def at_arrival(self, arrival, source_location=None, move_type="move"):
+        """Let everything already here react to ``arrival``.
+
+        Rooms with their own behavior (traps, ambience, doors) override this
+        and call ``super()``.
+        """
+
+        if getattr(arrival, "is_character", False):
+            from world.mapping import record_room_visit
+
+            record_room_visit(arrival, self)
+
+        for occupant in list(self.contents):
+            if occupant is arrival:
+                continue
+            hook = getattr(occupant, "at_entity_arrived", None)
+            if callable(hook):
+                hook(arrival, source_location=source_location, move_type=move_type)
+
     def at_desc(self, looker=None, **kwargs):
-        """Record exploration and send fresh mapper data for this room."""
+        """Send fresh mapper data for this room (visits are recorded on arrival)."""
 
         super().at_desc(looker=looker, **kwargs)
         if looker and looker.location == self:
-            from world.mapping import record_room_visit
-
-            record_room_visit(looker, self)
             looker.msg(room_info=self.get_room_info(looker))

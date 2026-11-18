@@ -108,3 +108,74 @@ class CombatFoundationTests(EvenniaTest):
         self.assertEqual(progress["level_experience"], 0)
         self.assertGreater(self.char1.db.health_max, before_max)
         self.assertEqual(self.char1.db.health_current, self.char1.db.health_max)
+
+    @patch("world.combat.randint", side_effect=[1, 6, 100])
+    def test_defeat_disengages_the_hostile_that_landed_the_kill(self, _randint):
+        """Repair plan step 1 (audit P0-3): defeat resets the real attacker."""
+
+        striker = create_object(
+            HostileNPC, key="second hostile", location=self.room1, home=self.room1
+        )
+        # Both hostiles target char1, but char1 remembers only self.hostile.
+        engage(self.char1, striker, now=100.0)
+        engage(self.char1, self.hostile, now=100.0)
+        self.assertEqual(self.char1.db.combat_target_id, self.hostile.id)
+        self.assertEqual(striker.db.combat_target_id, self.char1.id)
+        self.char1.apply_damage(int(self.char1.db.health_current) - 1, message=False)
+
+        tick_hostile(striker, now=101.0)  # telegraph
+        tick_hostile(striker, now=104.0)  # lethal hit -> handle_character_defeat
+
+        self.assertEqual(self.char1.db.health_current, self.char1.db.health_max)
+        self.assertIsNone(striker.db.combat_target_id)
+        self.assertIsNone(striker.db.combat_intent)
+        self.assertIsNone(self.hostile.db.combat_target_id)
+
+    def test_respawn_deadline_reconciles_after_downtime(self):
+        """Scheduling convention example: a durable deadline is a timestamp
+        that the next check reconciles, even if the server slept through it."""
+
+        from world.combat import defeat_hostile
+
+        defeat_hostile(self.hostile)
+        self.assertTrue(self.hostile.db.is_defeated)
+        due = float(self.hostile.db.respawn_at)
+
+        tick_hostile(self.hostile, now=due - 1)
+        self.assertTrue(self.hostile.db.is_defeated)
+
+        # Simulate a restart long after the deadline: no timer was kept alive.
+        tick_hostile(self.hostile, now=due + 3600)
+        self.assertFalse(self.hostile.db.is_defeated)
+
+
+class HostilityHookTests(EvenniaTest):
+    """Repair plan step 9: hostility is a hook, defaulting to today's flag."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.location = self.room1
+        ensure_character_resources(self.char1)
+        self.hostile = create_object(HostileNPC, key="test hostile", location=self.room1)
+
+    def test_defaults_match_the_old_flag(self):
+        from typeclasses.npcs import FriendlyNPC
+
+        friendly = create_object(FriendlyNPC, key="guide", location=self.room1)
+
+        self.assertTrue(self.hostile.is_hostile_to(self.char1))
+        self.assertTrue(self.hostile.can_be_attacked_by(self.char1))
+        self.assertFalse(friendly.is_hostile_to(self.char1))
+        self.assertFalse(friendly.can_be_attacked_by(self.char1))
+        self.assertFalse(self.char1.can_be_attacked_by(self.char2))  # no PvP yet
+
+    def test_combat_and_room_payloads_ask_the_hook(self):
+        from world.combat import player_attack
+
+        # A pacified hostile: same class, but no longer an enemy of char1.
+        with patch.object(self.hostile, "is_hostile_to", return_value=False):
+            self.assertIsNone(player_attack(self.char1, self.hostile, now=100.0))
+            npcs = self.room1.get_room_info(self.char1)["npcs"]
+
+        self.assertEqual(npcs, [{"id": self.hostile.id, "name": "test hostile", "hostile": False}])
+        self.assertIsNone(self.char1.db.combat_target_id)

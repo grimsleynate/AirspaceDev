@@ -1,7 +1,5 @@
 """Server-authoritative character health, vitals, and HUD snapshots."""
 
-from math import ceil
-
 
 RESOURCE_PROTOCOL_REVISION = 7
 DEFAULT_HEALTH = 100
@@ -23,16 +21,9 @@ def ensure_character_resources(character):
             character.attributes.get("health_max"), 1, 1_000_000, DEFAULT_HEALTH
         )
 
-    from world.combat import calculate_max_health
-    from world.character_traits import ensure_health_trait
+    from world.health import ensure_health
 
-    health_max = calculate_max_health(character)
-    health_current = _bounded_int(
-        character.attributes.get("health_current"), 0, health_max, health_max
-    )
-    ensure_health_trait(
-        character, health_max=health_max, health_current=health_current
-    )
+    ensure_health(character)
     return character
 
 
@@ -54,7 +45,9 @@ def build_resource_payload(character):
 
     ensure_character_resources(character)
     from world.combat import combat_payload, progression_payload
+    from world.health import health_of
 
+    health_current, health_max = health_of(character)
     inventory = getattr(character, "inventory_items", lambda: character.contents)()
     equipment = [
         item for item in character.contents if getattr(item, "is_equipped", False)
@@ -67,8 +60,8 @@ def build_resource_payload(character):
             "level": int(character.db.level or 1),
         },
         "health": {
-            "current": int(character.db.health_current),
-            "max": int(character.db.health_max),
+            "current": health_current,
+            "max": health_max,
         },
         "progression": progression_payload(character),
         "combat": combat_payload(character),
@@ -142,46 +135,16 @@ def clear_character_resources(session):
 
 
 def apply_damage(character, amount, damage_type="damage", message=True):
-    """Apply damage to Health and publish the result."""
+    """Compatibility alias for ``world.health.take_damage``."""
 
-    ensure_character_resources(character)
-    amount = max(0, int(ceil(amount)))
-    if not amount:
-        return 0
-    health = character.traits.health
-    before = int(health.current)
-    after = max(0, before - amount)
-    actual = before - after
-    health.current = after
-    from world.character_traits import sync_resource_attributes
+    from world.health import take_damage
 
-    sync_resource_attributes(character)
-    if message and actual:
-        character.msg(f"|rYou take {actual} damage.|n")
-    if actual:
-        from world.audio import emit_audio
-
-        emit_audio(character, "combat.player_hurt", priority=80)
-    if after <= 0 and not character.db.incapacitated:
-        character.db.incapacitated = True
-        character.msg("|rYour strength gives out and you lose consciousness.|n")
-    send_character_resources(character)
-    return actual
+    return take_damage(character, amount, damage_type=damage_type, message=message)
 
 
 def restore_health(character, amount=None):
-    """Restore Health up to its derived maximum; ``None`` heals fully."""
+    """Compatibility alias for ``world.health.heal``."""
 
-    ensure_character_resources(character)
-    health = character.traits.health
-    maximum = int(health.max)
-    amount = maximum if amount is None else max(0, int(amount))
-    before = int(health.current)
-    health.current = min(maximum, before + amount)
-    from world.character_traits import sync_resource_attributes
+    from world.health import heal
 
-    sync_resource_attributes(character)
-    if health.current > 0:
-        character.db.incapacitated = False
-    send_character_resources(character)
-    return int(health.current) - before
+    return heal(character, amount=amount)

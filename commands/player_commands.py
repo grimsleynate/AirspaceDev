@@ -547,7 +547,9 @@ class CmdConsider(Command):
         target = self.caller.search(query, location=self.caller.location)
         if not target:
             return
-        if not getattr(target, "is_hostile", False):
+        from typeclasses.objects import attackable_by
+
+        if not attackable_by(target, self.caller):
             self.caller.msg(f"{target.get_display_name(self.caller)} is not a combat target.")
             return
         player_level = int(self.caller.db.level or 1)
@@ -562,7 +564,10 @@ class CmdConsider(Command):
             if difference <= 2
             else "is overwhelmingly dangerous"
         )
+        from world.health import health_of
+
+        current, maximum = health_of(target)
         self.caller.msg(
             f"|h|r{target.key}|n is level {target_level} and {verdict}. "
-            f"Condition: {int(target.db.health_current or 0)}/{int(target.db.health_max or 1)}."
+            f"Condition: {current}/{maximum}."
         )
