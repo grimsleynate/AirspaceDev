@@ -4,7 +4,7 @@ import { parseEnvelope } from "./useEvenniaSocket";
 
 function handlers() {
   return {
-    onText: vi.fn(), onPrompt: vi.fn(), onHtmlText: vi.fn(), onHtmlPrompt: vi.fn(),
+    onHtmlText: vi.fn(), onHtmlPrompt: vi.fn(),
     onRoomInfo: vi.fn(), onMapSync: vi.fn(), onJournalSync: vi.fn(),
     onAudioScene: vi.fn(), onAudioPlay: vi.fn(), onAudioStop: vi.fn(), onRoomEffects: vi.fn(), onAccessibility: vi.fn(),
     onCharacterResources: vi.fn(), onChargenPreview: vi.fn(), onProtocol: vi.fn(),
@@ -40,15 +40,21 @@ describe("Evennia websocket envelopes", () => {
     expect(target.onMapSync).toHaveBeenCalledWith(payload);
   });
 
-  it("continues to support GMCP JSON envelopes", () => {
+  it("routes native room info", () => {
     const target = handlers();
     const room = { num: 3, name: "Docking Ring" };
 
-    parseEnvelope(JSON.stringify({
-      proto: "gmcp", id: "Room.Info", data: JSON.stringify(room),
-    }), target);
+    parseEnvelope(JSON.stringify(["room_info", [], { ...room, options: {} }]), target);
 
     expect(target.onRoomInfo).toHaveBeenCalledWith(room);
+  });
+
+  it("passes unrecognized outputfuncs through untouched", () => {
+    const target = handlers();
+
+    parseEnvelope(JSON.stringify(["client_options", [], { ansi: true, options: {} }]), target);
+
+    expect(target.onProtocol).toHaveBeenCalledWith("client_options", { ansi: true });
   });
 
   it("routes native room-effect synchronization", () => {

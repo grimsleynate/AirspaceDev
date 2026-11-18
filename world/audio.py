@@ -115,10 +115,9 @@ def send_audio_scene(character, session=None, force=False):
         from world.accessibility import room_media_enabled
 
         target_payload = payload if room_media_enabled(character, target) else silence
-        flags = getattr(target, "protocol_flags", {})
-        if not force and flags.get("QUASAR_AUDIO_SCENE") == target_payload:
+        if not force and target.ndb.quasar_audio_scene == target_payload:
             continue
-        flags["QUASAR_AUDIO_SCENE"] = target_payload
+        target.ndb.quasar_audio_scene = target_payload
         target.msg(quasar_audio_scene=target_payload)
     return payload
 
@@ -149,5 +148,5 @@ def stop_audio(character, session=None, **options):
     for target in targets:
         target.msg(quasar_audio_stop=payload)
         if payload.get("all"):
-            getattr(target, "protocol_flags", {}).pop("QUASAR_AUDIO_SCENE", None)
+            target.ndb.quasar_audio_scene = None
     return payload

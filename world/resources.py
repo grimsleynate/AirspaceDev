@@ -335,10 +335,10 @@ def send_character_resources(character, session=None, force=False):
     targets = [session] if session else list(character.sessions.all())
     signature = (vitals, status_vars, payload)
     for target in targets:
-        flags = getattr(target, "protocol_flags", {})
-        if not force and flags.get("QUASAR_RESOURCE_STATE") == signature:
+        # Last-sent cache lives in ndb: protocol_flags are synced to the Portal.
+        if not force and target.ndb.quasar_resource_state == signature:
             continue
-        flags["QUASAR_RESOURCE_STATE"] = signature
+        target.ndb.quasar_resource_state = signature
         target.msg(
             char_statusvars=status_vars,
             char_vitals=vitals,
@@ -352,7 +352,7 @@ def clear_character_resources(session):
 
     if not session:
         return
-    getattr(session, "protocol_flags", {}).pop("QUASAR_RESOURCE_STATE", None)
+    session.ndb.quasar_resource_state = None
     session.msg(
         quasar_character_resources={
             "revision": RESOURCE_PROTOCOL_REVISION,

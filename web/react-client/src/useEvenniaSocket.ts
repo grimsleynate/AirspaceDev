@@ -16,8 +16,6 @@ import type {
 } from "./types";
 
 interface SocketHandlers {
-  onText: (text: string) => void;
-  onPrompt: (text: string) => void;
   onHtmlText: (html: string) => void;
   onHtmlPrompt: (html: string) => void;
   onRoomInfo: (room: RoomInfo) => void;
@@ -48,37 +46,39 @@ function makeSocketUrl(config: ClientConfig, pageId: string): string {
   return `${base}?${config.browserSession}&${pageId}&${browserName()}`;
 }
 
-function routeStructured(packageName: string, data: unknown, handlers: SocketHandlers): void {
-  const normalized = packageName.toLowerCase().replaceAll("_", ".");
-  if (normalized === "room.info") handlers.onRoomInfo(data as RoomInfo);
-  else if (normalized === "quasar.map.sync") handlers.onMapSync(data as MapSync);
-  else if (normalized === "quasar.journal.sync") handlers.onJournalSync(data as JournalSync);
-  else if (normalized === "quasar.audio.scene") handlers.onAudioScene(data as AudioScene);
-  else if (normalized === "quasar.audio.play") handlers.onAudioPlay(data as AudioPlayEvent);
-  else if (normalized === "quasar.audio.stop") handlers.onAudioStop(data as AudioStopEvent);
-  else if (normalized === "quasar.room.effects.sync") handlers.onRoomEffects(data as RoomEffectsSync);
-  else if (normalized === "quasar.accessibility.sync") handlers.onAccessibility(data as AccessibilitySync);
-  else if (normalized === "quasar.character.resources") {
-    handlers.onCharacterResources(data as CharacterResourceState);
+// Evennia names websocket output after the Python outputfunc, e.g.
+// ``session.msg(quasar_map_sync=...)`` arrives as ``quasar_map_sync``. Telnet
+// clients receive the same output as GMCP ``Quasar.Map.Sync`` or MSDP.
+function routeStructured(command: string, data: unknown, handlers: SocketHandlers): void {
+  switch (command) {
+    case "room_info": handlers.onRoomInfo(data as RoomInfo); break;
+    case "quasar_map_sync": handlers.onMapSync(data as MapSync); break;
+    case "quasar_journal_sync": handlers.onJournalSync(data as JournalSync); break;
+    case "quasar_audio_scene": handlers.onAudioScene(data as AudioScene); break;
+    case "quasar_audio_play": handlers.onAudioPlay(data as AudioPlayEvent); break;
+    case "quasar_audio_stop": handlers.onAudioStop(data as AudioStopEvent); break;
+    case "quasar_room_effects_sync": handlers.onRoomEffects(data as RoomEffectsSync); break;
+    case "quasar_accessibility_sync": handlers.onAccessibility(data as AccessibilitySync); break;
+    case "quasar_character_resources":
+      handlers.onCharacterResources(data as CharacterResourceState);
+      break;
+    case "quasar_chargen_preview": handlers.onChargenPreview(data as ChargenPreview); break;
+    default: handlers.onProtocol(command, data);
   }
-  else if (normalized === "quasar.chargen.preview") {
-    handlers.onChargenPreview(data as ChargenPreview);
-  }
-  else handlers.onProtocol(packageName, data);
 }
 
 export function parseEnvelope(raw: string, handlers: SocketHandlers): void {
-  let envelope: { proto?: string; id?: string; data?: string } | [string, unknown, object];
+  let envelope: unknown;
   try {
-    envelope = JSON.parse(raw) as typeof envelope;
+    envelope = JSON.parse(raw);
   } catch {
     return;
   }
 
   // Evennia's websocket protocol emits [command, args, kwargs]. Text is
   // already safely converted to HTML by Evennia's webclient protocol.
-  if (Array.isArray(envelope)) {
-    const [command, wireArgs, wireKwargs] = envelope;
+  if (Array.isArray(envelope) && typeof envelope[0] === "string") {
+    const [command, wireArgs, wireKwargs] = envelope as [string, unknown, object];
     const args = Array.isArray(wireArgs) ? wireArgs : [wireArgs];
     const kwargs = { ...(wireKwargs || {}) } as Record<string, unknown>;
     delete kwargs.options;
@@ -90,26 +90,7 @@ export function parseEnvelope(raw: string, handlers: SocketHandlers): void {
     if (command === "text") handlers.onHtmlText(String(data ?? ""));
     else if (command === "prompt") handlers.onHtmlPrompt(String(data ?? ""));
     else routeStructured(command, data, handlers);
-    return;
   }
-
-  if (envelope.proto === "prompt") {
-    handlers.onPrompt(envelope.data || "");
-    return;
-  }
-  if (envelope.proto !== "gmcp" || !envelope.id) {
-    handlers.onProtocol(envelope.proto || "unknown", envelope.data);
-    return;
-  }
-
-  let data: unknown = envelope.data || "";
-  try {
-    data = envelope.data ? JSON.parse(envelope.data) : {};
-  } catch {
-    // Some GMCP packages intentionally carry a plain string.
-  }
-
-  routeStructured(envelope.id, data, handlers);
 }
 
 export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers) {
@@ -130,42 +111,26 @@ export function useEvenniaSocket(config: ClientConfig, handlers: SocketHandlers)
     setStatus("connecting");
     const pageId = crypto.randomUUID?.() || Math.random().toString(36).slice(2);
     const socket = new WebSocket(makeSocketUrl(config, pageId));
-    socket.binaryType = "arraybuffer";
     socketRef.current = socket;
 
     socket.onopen = () => {
       setStatus("connected");
-      const sendGmcp = (name: string, data: unknown = "") => {
-        socket.send(
-          JSON.stringify([
-            "gmcp",
-            [
-              name,
-              typeof data === "string" ? data : JSON.stringify(data),
-            ],
-            {},
-          ]),
-        );
+      // Each message names a function in server/conf/inputfuncs.py; telnet
+      // clients reach the same functions via GMCP (e.g. Quasar.Map.Get).
+      const callInputFunc = (name: string, kwargs: Record<string, unknown> = {}) => {
+        socket.send(JSON.stringify([name, [], kwargs]));
       };
 
-      sendGmcp("Quasar.Audio.Supports", { version: 1 });
-      sendGmcp("Quasar.Room_Effects.Supports", { version: 1 });
-      sendGmcp("Quasar.Accessibility.Get");
-      sendGmcp("Quasar.Map.Get");
-      sendGmcp("Quasar.Character.Get");
-      sendGmcp("Quasar.Journal.Get");
+      callInputFunc("quasar_audio_supports", { version: 1 });
+      callInputFunc("quasar_room_effects_supports", { version: 1 });
+      callInputFunc("quasar_accessibility_get");
+      callInputFunc("quasar_map_get");
+      callInputFunc("quasar_character_get");
+      callInputFunc("quasar_journal_get");
       socket.send(JSON.stringify(["csessid", [config.browserSession || pageId], {}]));
     };
     socket.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) {
-        handlersRef.current.onText(new TextDecoder().decode(event.data));
-      } else if (event.data instanceof Blob) {
-        void event.data.arrayBuffer().then((buffer) => {
-          handlersRef.current.onText(new TextDecoder().decode(buffer));
-        });
-      } else {
-        parseEnvelope(String(event.data), handlersRef.current);
-      }
+      parseEnvelope(String(event.data), handlersRef.current);
     };
     socket.onerror = () => {
       if (socketRef.current === socket) setStatus("error");

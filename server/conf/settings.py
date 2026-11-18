@@ -57,6 +57,12 @@ if DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
         QUASAR_RUNTIME_DIR, "evennia.db3"
     )
 
+# Negotiate GMCP and MSDP with telnet clients (Mudlet, MUSHclient, etc).
+# Evennia encodes every non-text ``msg(name=...)`` output for whichever OOB
+# protocol the client agreed to, and decodes incoming packages straight to
+# the matching function in server.conf.inputfuncs. MSSP advertises both.
+TELNET_OOB_ENABLED = True
+
 #Account and Character config
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 AUTO_PUPPET_ON_LOGIN = False

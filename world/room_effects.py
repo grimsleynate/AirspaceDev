@@ -115,10 +115,9 @@ def send_room_effects(character, session=None, force=False):
         from world.accessibility import room_media_enabled
 
         target_payload = payload if room_media_enabled(character, target) else cleared
-        flags = getattr(target, "protocol_flags", {})
-        if not force and flags.get("QUASAR_ROOM_EFFECTS_SCENE") == target_payload:
+        if not force and target.ndb.quasar_room_effects_scene == target_payload:
             continue
-        flags["QUASAR_ROOM_EFFECTS_SCENE"] = target_payload
+        target.ndb.quasar_room_effects_scene = target_payload
         target.msg(quasar_room_effects_sync=target_payload)
     return payload
 
@@ -127,6 +126,6 @@ def clear_room_effects(session):
     """Clear visual ambience when a session leaves character play."""
 
     payload = build_room_effects(None)
-    getattr(session, "protocol_flags", {}).pop("QUASAR_ROOM_EFFECTS_SCENE", None)
+    session.ndb.quasar_room_effects_scene = None
     session.msg(quasar_room_effects_sync=payload)
     return payload

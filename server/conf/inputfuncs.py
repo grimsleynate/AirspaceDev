@@ -18,6 +18,13 @@ An input function must have the following call signature:
 Where session will be the active session and *args, **kwargs are extra
 incoming arguments and keyword properties.
 
+Evennia's protocols resolve the function by name, so no dispatcher is
+needed here:
+
+- Telnet GMCP ``Quasar.Map.Get {...}`` is decoded to ``quasar_map_get``
+  (dots become underscores, lowercased, a ``Core.`` prefix is dropped).
+- The websocket webclient sends ``["quasar_map_get", [args], {kwargs}]``.
+
 A special command is the "default" command, which is will be called
 when no other cmdname matches. It also receives the non-found cmdname
 as argument.
@@ -27,25 +34,8 @@ as argument.
 """
 
 
-def gmcp(session, *args, **kwargs):
-    """Dispatch websocket GMCP packages to Quasar's explicit input handlers."""
-
-    package = str(args[0] if args else "").strip().lower()
-    handlers = {
-        "quasar.audio.supports": quasar_audio_supports,
-        "quasar.room_effects.supports": quasar_room_effects_supports,
-        "quasar.accessibility.get": quasar_accessibility_get,
-        "quasar.map.get": quasar_map_get,
-        "quasar.character.get": quasar_character_get,
-        "quasar.journal.get": quasar_journal_get,
-    }
-    handler = handlers.get(package)
-    if handler:
-        handler(session, *(args[1:] if len(args) > 1 else ()), **kwargs)
-
-
 def quasar_map_get(session, *args, **kwargs):
-    """Let the React client request the active character's map snapshot."""
+    """Let the client request the active character's map snapshot."""
 
     character = session.puppet
     if character:
@@ -57,7 +47,8 @@ def quasar_map_get(session, *args, **kwargs):
 def quasar_audio_supports(session, *args, **kwargs):
     """Negotiate native audio and immediately provide the active scene."""
 
-    session.protocol_flags["QUASAR_AUDIO"] = 1
+    # update_flags syncs to the Portal so support survives a server reload.
+    session.update_flags(QUASAR_AUDIO=True)
     character = session.puppet
     if character:
         from world.audio import send_audio_scene
@@ -68,7 +59,7 @@ def quasar_audio_supports(session, *args, **kwargs):
 def quasar_room_effects_supports(session, *args, **kwargs):
     """Negotiate native room visuals and immediately provide the active scene."""
 
-    session.protocol_flags["QUASAR_ROOM_EFFECTS"] = 1
+    session.update_flags(QUASAR_ROOM_EFFECTS=True)
     character = session.puppet
     if character:
         from world.room_effects import send_room_effects
@@ -81,7 +72,7 @@ def quasar_accessibility_get(session, *args, **kwargs):
 
     # Negotiation may arrive before the csessid login association. Preserve
     # support now so Account.at_post_login can synchronize immediately.
-    session.protocol_flags["QUASAR_ACCESSIBILITY"] = 1
+    session.update_flags(QUASAR_ACCESSIBILITY=True)
     account = session.account
     if account:
         from world.accessibility import apply_accessibility_preferences
@@ -109,29 +100,3 @@ def quasar_journal_get(session, *args, **kwargs):
         from world.journal import send_journal_sync
 
         send_journal_sync(character, session=session)
-
-
-# def oob_echo(session, *args, **kwargs):
-#     """
-#     Example echo function. Echoes args, kwargs sent to it.
-#
-#     Args:
-#         session (Session): The Session to receive the echo.
-#         args (list of str): Echo text.
-#         kwargs (dict of str, optional): Keyed echo text
-#
-#     """
-#     session.msg(oob=("echo", args, kwargs))
-#
-#
-# def default(session, cmdname, *args, **kwargs):
-#     """
-#     Handles commands without a matching inputhandler func.
-#
-#     Args:
-#         session (Session): The active Session.
-#         cmdname (str): The (unmatched) command name
-#         args, kwargs (any): Arguments to function.
-#
-#     """
-#     pass

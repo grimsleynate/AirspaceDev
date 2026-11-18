@@ -215,8 +215,6 @@ export default function App({ config }: AppProps) {
 
   const handlers = useMemo(
     () => ({
-      onText: (text: string) => append(text, "text"),
-      onPrompt: (text: string) => append(text, "prompt"),
       onHtmlText: (html: string) => appendHtml(html, "text"),
       onHtmlPrompt: (html: string) => appendHtml(html, "prompt"),
       onRoomInfo: (info: RoomInfo) => {
